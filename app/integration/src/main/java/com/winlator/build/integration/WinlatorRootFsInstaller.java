@@ -68,6 +68,8 @@ public final class WinlatorRootFsInstaller {
     private static final String PRESERVE_HOME = "home";
     private static final String PRESERVE_INSTALLED_WINE = "opt/installed-wine";
     private static final String JOURNAL_FILE = ".winlator-build-rootfs-transaction";
+    private static final String JOURNAL_PHASE_ACTIVATING = "ACTIVATING";
+    private static final String JOURNAL_PHASE_COMMITTING = "COMMITTING";
     private static final long STORAGE_MARGIN_BYTES = 64L * 1024L * 1024L;
 
     private WinlatorRootFsInstaller() {}
@@ -177,7 +179,8 @@ public final class WinlatorRootFsInstaller {
                     activeRoot,
                     stagingRoot,
                     Arrays.asList(PRESERVE_HOME, PRESERVE_INSTALLED_WINE));
-            if (!writeJournal(journal, transaction.getBackupRoot(), stagingRoot)) {
+            if (!writeJournal(journal, transaction.getBackupRoot(), stagingRoot,
+                    JOURNAL_PHASE_ACTIVATING)) {
                 return result(Status.BLOCKED, before, before,
                         "Unable to create RootFS transaction journal", false);
             }
@@ -212,17 +215,26 @@ public final class WinlatorRootFsInstaller {
                         appendRollback(joinIssues(after), rolledBack), rolledBack);
             }
 
+            if (!writeJournal(journal, transaction.getBackupRoot(), stagingRoot,
+                    JOURNAL_PHASE_COMMITTING)) {
+                boolean rolledBack = transaction.rollback();
+                if (rolledBack) journalResolved = deleteJournal(journal);
+                return result(rolledBack ? Status.ACTIVATION_FAILED : Status.ROLLBACK_FAILED,
+                        before, after,
+                        appendRollback("Unable to persist RootFS commit phase", rolledBack), rolledBack);
+            }
+
             String warning = resetPostInstallState(activity);
             boolean backupCleaned = transaction.commit();
             if (!backupCleaned) {
                 warning = appendWarning(warning,
-                        "RootFS was activated but old backup cleanup failed");
-            }
-
-            journalResolved = deleteJournal(journal);
-            if (!journalResolved) {
-                warning = appendWarning(warning,
-                        "RootFS is valid, but transaction journal cleanup failed");
+                        "RootFS is valid; old backup cleanup is pending recovery");
+            } else {
+                journalResolved = deleteJournal(journal);
+                if (!journalResolved) {
+                    warning = appendWarning(warning,
+                            "RootFS is valid, but transaction journal cleanup failed");
+                }
             }
 
             RuntimeBaseInspection committed = inspectSafely(inspector, activity);
@@ -249,15 +261,27 @@ public final class WinlatorRootFsInstaller {
 
         String backupName = properties.getProperty("backup", "").trim();
         String stagingName = properties.getProperty("staging", "").trim();
+        String phase = properties.getProperty("phase", "").trim();
         if (!isSafeSiblingName(backupName, activeRoot.getName() + ".backup-")
-                || !isSafeSiblingName(stagingName, activeRoot.getName() + ".staging-")) {
-            return "Interrupted RootFS transaction journal contains unsafe paths";
+                || !isSafeSiblingName(stagingName, activeRoot.getName() + ".staging-")
+                || (!JOURNAL_PHASE_ACTIVATING.equals(phase)
+                    && !JOURNAL_PHASE_COMMITTING.equals(phase))) {
+            return "Interrupted RootFS transaction journal contains unsafe or invalid state";
         }
 
         File backup = new File(parent, backupName);
         File staging = new File(parent, stagingName);
 
-        if (backup.exists()) {
+        if (JOURNAL_PHASE_COMMITTING.equals(phase)) {
+            RuntimeBaseInspection activeInspection = new RuntimeBaseInspector().inspect(
+                    new RuntimeBaseTreeProbe(activeRoot, true, true));
+            if (!activeInspection.isLaunchReady()) {
+                return "Committed RootFS recovery found an invalid active RootFS; manual recovery is required";
+            }
+            if (backup.exists() && !FileUtils.delete(backup)) {
+                return "Unable to finish old RootFS backup cleanup after interrupted commit";
+            }
+        } else if (backup.exists()) {
             if (activeRoot.exists()) {
                 if (!restorePreservedPath(activeRoot, backup, PRESERVE_HOME)) {
                     return "Unable to restore preserved home directory from interrupted RootFS transaction";
@@ -295,9 +319,10 @@ public final class WinlatorRootFsInstaller {
         return activePath.renameTo(backupPath);
     }
 
-    private static boolean writeJournal(File journal, File backup, File staging) {
+    private static boolean writeJournal(File journal, File backup, File staging, String phase) {
         String data = "backup=" + backup.getName() + "\n"
-                + "staging=" + staging.getName() + "\n";
+                + "staging=" + staging.getName() + "\n"
+                + "phase=" + phase + "\n";
         return FileUtils.writeString(journal, data);
     }
 
