@@ -29,6 +29,7 @@ public final class ContainerRuntimePlanApplier implements RuntimePlanApplier {
         }
 
         return new Transaction() {
+            private boolean commitAttempted;
             private boolean committed;
             private boolean rolledBack;
 
@@ -38,13 +39,14 @@ public final class ContainerRuntimePlanApplier implements RuntimePlanApplier {
             public void commit() {
                 if (rolledBack) throw new IllegalStateException("cannot commit a rolled back runtime plan");
                 if (committed) return;
+                commitAttempted = true;
                 container.saveData();
                 committed = true;
             }
 
             public void rollback() {
                 if (rolledBack) return;
-                ContainerRuntimeAdapter.rollback(container, result.getPreviousState(), committed);
+                ContainerRuntimeAdapter.rollback(container, result.getPreviousState(), commitAttempted);
                 rolledBack = true;
             }
         };
