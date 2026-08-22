@@ -80,31 +80,37 @@ def main() -> int:
                             android:layout_height="wrap_content"
                             android:layout_gravity="center_horizontal"
                             android:text="@string/reinstall_system_files" />''',
-            '''                        <Button
-                            style="@style/ButtonNeutral"
-                            android:id="@+id/BTReinstallSystemFiles"
-                            android:layout_width="wrap_content"
+            '''                        <LinearLayout
+                            android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_gravity="center_horizontal"
-                            android:text="@string/reinstall_system_files" />
+                            android:orientation="vertical"
+                            android:gravity="center_horizontal">
 
-                        <Button
-                            style="@style/ButtonNeutral"
-                            android:id="@+id/BTInspectBox64Baseline"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginStart="8dp"
-                            android:text="Inspect Box64 baseline" />
+                            <Button
+                                style="@style/ButtonNeutral"
+                                android:id="@+id/BTReinstallSystemFiles"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="@string/reinstall_system_files" />
 
-                        <Button
-                            style="@style/ButtonNeutral"
-                            android:id="@+id/BTInspectWineBaseline"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginStart="8dp"
-                            android:text="Inspect Wine baseline" />''',
+                            <Button
+                                style="@style/ButtonNeutral"
+                                android:id="@+id/BTInspectBox64Baseline"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="8dp"
+                                android:text="Inspect Box64 baseline" />
+
+                            <Button
+                                style="@style/ButtonNeutral"
+                                android:id="@+id/BTInspectWineBaseline"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="8dp"
+                                android:text="Inspect Wine baseline" />
+                        </LinearLayout>''',
             1,
-            "Settings runtime diagnostic buttons",
+            "Settings responsive runtime diagnostic buttons",
         ),
     ])
 
