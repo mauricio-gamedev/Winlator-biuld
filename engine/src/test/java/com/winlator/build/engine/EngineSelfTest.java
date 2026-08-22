@@ -16,6 +16,7 @@ public final class EngineSelfTest {
         testAdrenoPolicy();
         testNoVulkanFallback();
         testComponentCompatibility();
+        testGuestArchitectureDoesNotRejectArmHost();
         testRuntimeStateMachine();
         System.out.println("EngineSelfTest: all tests passed");
     }
@@ -51,6 +52,14 @@ public final class EngineSelfTest {
                 Collections.singletonList("arm64-v8a"), Arrays.asList(GpuFamily.MALI, GpuFamily.ADRENO, GpuFamily.GENERIC), 26, null, true));
         assertEquals(1, registry.compatible(mali).size(), "Mali compatible component count");
         assertEquals("renderer.vortek", registry.compatible(mali).get(0).getId(), "Mali compatible renderer");
+    }
+
+    private static void testGuestArchitectureDoesNotRejectArmHost() {
+        HardwareCapabilities mali = profile("Mali-G52 MC2", "ARM", 1, 1, 0, 4L * 1024 * 1024 * 1024);
+        ComponentRegistry registry = new ComponentRegistry();
+        registry.register(new ComponentRegistry.Component("dxvk.x64", "dxvk", "testing",
+                Collections.singletonList("x86_64"), Collections.singletonList(GpuFamily.GENERIC), 26, null, true));
+        assertEquals(1, registry.compatible(mali).size(), "Guest x86_64 component must remain valid on ARM64 host");
     }
 
     private static void testRuntimeStateMachine() {
