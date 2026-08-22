@@ -26,5 +26,6 @@ java -cp "$OUT_DIR/classes" com.winlator.build.integration.WinlatorRuntimeBasePr
 java -cp "$OUT_DIR/classes" com.winlator.build.integration.WinlatorRootFsInstallerSelfTest
 java -cp "$OUT_DIR/classes" com.winlator.build.integration.WinlatorBox64ProbeSelfTest
 java -cp "$OUT_DIR/classes" com.winlator.build.integration.WinlatorBox64InstallerSelfTest
+java -cp "$OUT_DIR/classes" com.winlator.build.integration.WinlatorBox64RecoverySelfTest
 
 rm -rf "$OUT_DIR"
