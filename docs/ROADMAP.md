@@ -6,7 +6,7 @@ Goal: establish a clean, testable project structure before importing runtime bin
 
 - [x] Define three-layer architecture.
 - [x] Define upstream/fork policy.
-- [ ] Create Android project skeleton.
+- [ ] Create/finalize Android project identity and product skeleton.
 - [x] Define component manifest schema.
 - [x] Define device capability model.
 - [x] Define game profile schema.
@@ -44,9 +44,16 @@ RootFS / GLIBC baseline:
 - [x] Validate the active RootFS again before commit.
 - [x] Add rollback to the previous RootFS on activation/final-validation failure.
 - [x] Add phase-aware transaction journal for process-death recovery.
+- [x] Resume post-install container metadata reset during interrupted commit recovery.
 - [x] Add free-storage preflight before staging extraction.
 - [x] Block automatic downgrade of a future/unvalidated RootFS.
-- [x] Extend integration CI coverage to all app/integration changes.
+- [x] Route startup and reinstall-system-files through the async transactional controller.
+- [x] Keep upstream source clean using an idempotent, fail-fast overlay patcher.
+- [x] Extend integration CI coverage to all app/integration and patcher changes.
+- [x] Add a real Android overlay `assembleDebug` CI gate against the pinned upstream.
+- [x] Isolate the validation APK as `com.winlator.buildtest`, including Java/native runtime paths and FileProvider authority.
+- [x] Upload the successful validation APK as a short-lived CI artifact.
+- [x] Document the Android RootFS validation protocol.
 - [ ] Validate RootFS installation/repair on an Android device.
 
 Remaining Core 0.2 runtime work:
