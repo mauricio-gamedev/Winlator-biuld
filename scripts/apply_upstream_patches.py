@@ -132,7 +132,7 @@ def main() -> int:
         [
             (
                 'public static final String INTERNAL_STORAGE = "/data/data/com.winlator/storage";',
-                'public static final String INTERNAL_STORAGE = "/data/data/"+com.winlator.BuildConfig.APPLICATION_ID+"/storage";',
+                f'public static final String INTERNAL_STORAGE = "/data/data/{VALIDATION_APPLICATION_ID}/storage";',
                 1,
                 "internal storage application path",
             ),
