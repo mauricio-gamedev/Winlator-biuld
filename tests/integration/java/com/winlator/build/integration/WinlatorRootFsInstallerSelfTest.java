@@ -82,7 +82,7 @@ public final class WinlatorRootFsInstallerSelfTest {
             staging.mkdirs();
 
             writeJournal(parent, backup.getName(), staging.getName(), "ACTIVATING");
-            String error = invokeRecovery(active, parent);
+            String error = invokeRecovery(configuredActivity(), active, parent);
 
             assertEquals("", error, "activating recovery error");
             assertTrue(new File(active, "old-system.txt").isFile(),
@@ -116,7 +116,7 @@ public final class WinlatorRootFsInstallerSelfTest {
             staging.mkdirs();
 
             writeJournal(parent, backup.getName(), staging.getName(), "COMMITTING");
-            String error = invokeRecovery(active, parent);
+            String error = invokeRecovery(configuredActivity(), active, parent);
 
             assertEquals("", error, "committing recovery error");
             assertTrue(new File(active, "new-system.txt").isFile(),
@@ -131,12 +131,12 @@ public final class WinlatorRootFsInstallerSelfTest {
         }
     }
 
-    private static String invokeRecovery(File active, File parent) {
+    private static String invokeRecovery(AppCompatActivity activity, File active, File parent) {
         try {
             Method method = WinlatorRootFsInstaller.class.getDeclaredMethod(
-                    "recoverInterruptedTransaction", File.class, File.class);
+                    "recoverInterruptedTransaction", AppCompatActivity.class, File.class, File.class);
             method.setAccessible(true);
-            return (String)method.invoke(null, active, parent);
+            return (String)method.invoke(null, activity, active, parent);
         } catch (Exception e) {
             throw new IllegalStateException(e);
         }
