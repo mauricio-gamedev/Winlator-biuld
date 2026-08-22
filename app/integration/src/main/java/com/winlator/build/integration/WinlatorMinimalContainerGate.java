@@ -12,13 +12,17 @@ import org.json.JSONObject;
 import java.io.File;
 
 public final class WinlatorMinimalContainerGate {
+    private static final String TEST_NAME = "Winlator Build Minimal";
+
     public static final class Result {
         public final boolean passed;
+        public final boolean reused;
         public final String message;
         public final Container container;
 
-        Result(boolean passed, String message, Container container) {
+        Result(boolean passed, boolean reused, String message, Container container) {
             this.passed = passed;
+            this.reused = reused;
             this.message = message == null ? "" : message;
             this.container = container;
         }
@@ -28,41 +32,63 @@ public final class WinlatorMinimalContainerGate {
 
     public static void create(Context context, Callback<Result> callback) {
         if (context == null) {
-            if (callback != null) callback.call(new Result(false, "Context is unavailable", null));
+            finish(callback, new Result(false, false, "Context is unavailable", null));
             return;
         }
 
         ContainerManager manager = new ContainerManager(context.getApplicationContext());
+        Container existing = findExisting(manager);
+        if (existing != null) {
+            String error = validate(existing);
+            if (error.isEmpty()) {
+                finish(callback, new Result(true, true,
+                        "Existing minimal container was revalidated successfully", existing));
+            } else {
+                manager.removeContainerAsync(existing, () -> finish(callback,
+                        new Result(false, false,
+                                error + "; invalid previous test container was removed", null)));
+            }
+            return;
+        }
+
         JSONObject data = new JSONObject();
         try {
-            data.put("name", "Winlator Build Minimal");
+            data.put("name", TEST_NAME);
             data.put("envVars", "");
             data.put("wincomponents", Container.FALLBACK_WINCOMPONENTS);
             data.put("hudMode", 0);
             data.put("startupSelection", Container.STARTUP_SELECTION_ESSENTIAL);
         } catch (JSONException e) {
-            if (callback != null) callback.call(new Result(false, "Unable to build minimal container configuration", null));
+            finish(callback, new Result(false, false,
+                    "Unable to build minimal container configuration", null));
             return;
         }
 
         manager.createContainerAsync(data, container -> {
             if (container == null) {
-                if (callback != null) callback.call(new Result(false, "ContainerManager failed to create the minimal container", null));
+                finish(callback, new Result(false, false,
+                        "ContainerManager failed to create the minimal container", null));
                 return;
             }
 
             String validationError = validate(container);
             if (!validationError.isEmpty()) {
-                manager.removeContainerAsync(container, () -> {
-                    if (callback != null) callback.call(new Result(false,
-                            validationError + "; invalid test container was removed", null));
-                });
+                manager.removeContainerAsync(container, () -> finish(callback,
+                        new Result(false, false,
+                                validationError + "; invalid test container was removed", null)));
                 return;
             }
 
-            if (callback != null) callback.call(new Result(true,
+            finish(callback, new Result(true, false,
                     "Minimal container structure was created and validated", container));
         });
+    }
+
+    private static Container findExisting(ContainerManager manager) {
+        for (Container container : manager.getContainers()) {
+            if (TEST_NAME.equals(container.getName())) return container;
+        }
+        return null;
     }
 
     private static String validate(Container container) {
@@ -93,5 +119,9 @@ public final class WinlatorMinimalContainerGate {
             return "Minimal WinComponents policy was not preserved";
         }
         return "";
+    }
+
+    private static void finish(Callback<Result> callback, Result result) {
+        if (callback != null) callback.call(result);
     }
 }
