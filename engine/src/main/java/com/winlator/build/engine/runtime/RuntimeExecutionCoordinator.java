@@ -10,7 +10,8 @@ public final class RuntimeExecutionCoordinator {
         PLAN_INVALID,
         NOT_READY,
         APPLY_FAILED,
-        PREPARE_FAILED
+        PREPARE_FAILED,
+        ROLLBACK_FAILED
     }
 
     public static final class Result {
@@ -103,34 +104,46 @@ public final class RuntimeExecutionCoordinator {
         try {
             RuntimeManager.Snapshot prepared = runtimeManager.prepare(plan);
             if (prepared.getState() != RuntimeManager.State.READY) {
-                safeRollback(transaction);
-                return result(Status.PREPARE_FAILED, plan, readiness, prepared,
-                        emptyToDefault(prepared.getError(), "runtime manager did not reach READY"), true);
+                boolean rolledBack = safeRollback(transaction);
+                return result(rolledBack ? Status.PREPARE_FAILED : Status.ROLLBACK_FAILED,
+                        plan, readiness, prepared,
+                        appendRollbackFailure(emptyToDefault(prepared.getError(),
+                                "runtime manager did not reach READY"), rolledBack), rolledBack);
             }
 
             try {
                 transaction.commit();
             } catch (RuntimeException e) {
-                safeRollback(transaction);
+                boolean rolledBack = safeRollback(transaction);
                 try {
                     runtimeManager.fail("runtime plan commit failed: " + messageOf(e));
                 } catch (RuntimeException ignored) {}
-                return result(Status.APPLY_FAILED, plan, readiness, runtimeManager.snapshot(),
-                        "runtime plan commit failed: " + messageOf(e), true);
+                return result(rolledBack ? Status.APPLY_FAILED : Status.ROLLBACK_FAILED,
+                        plan, readiness, runtimeManager.snapshot(),
+                        appendRollbackFailure("runtime plan commit failed: " + messageOf(e), rolledBack),
+                        rolledBack);
             }
 
             return result(Status.READY, plan, readiness, runtimeManager.snapshot(), "", false);
         } catch (RuntimeException e) {
-            safeRollback(transaction);
-            return result(Status.PREPARE_FAILED, plan, readiness, runtimeManager.snapshot(),
-                    messageOf(e), true);
+            boolean rolledBack = safeRollback(transaction);
+            return result(rolledBack ? Status.PREPARE_FAILED : Status.ROLLBACK_FAILED,
+                    plan, readiness, runtimeManager.snapshot(),
+                    appendRollbackFailure(messageOf(e), rolledBack), rolledBack);
         }
     }
 
-    private static void safeRollback(RuntimePlanApplier.Transaction transaction) {
+    private static boolean safeRollback(RuntimePlanApplier.Transaction transaction) {
         try {
             transaction.rollback();
-        } catch (RuntimeException ignored) {}
+            return true;
+        } catch (RuntimeException ignored) {
+            return false;
+        }
+    }
+
+    private static String appendRollbackFailure(String error, boolean rolledBack) {
+        return rolledBack ? error : emptyToDefault(error, "runtime operation failed") + "; rollback failed";
     }
 
     private static Result result(Status status, RuntimePlan plan, RuntimeReadiness readiness,
