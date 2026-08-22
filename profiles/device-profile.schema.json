@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://winlator-build.local/schemas/device-profile.schema.json",
+  "title": "Winlator Build Device Profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "manufacturer", "model", "abi", "gpu", "memory", "capabilities"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$" },
+    "manufacturer": { "type": "string", "minLength": 1 },
+    "model": { "type": "string", "minLength": 1 },
+    "abi": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string" }
+    },
+    "android": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "version": { "type": "string" },
+        "api": { "type": "integer", "minimum": 21 }
+      }
+    },
+    "gpu": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["family", "name"],
+      "properties": {
+        "family": {
+          "type": "string",
+          "enum": ["adreno", "mali", "powervr", "xclipse", "generic"]
+        },
+        "name": { "type": "string", "minLength": 1 },
+        "vendor": { "type": "string" },
+        "vulkanVersion": { "type": ["string", "null"] },
+        "openGLESVersion": { "type": ["string", "null"] }
+      }
+    },
+    "memory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ramMiB"],
+      "properties": {
+        "ramMiB": { "type": "integer", "minimum": 512 },
+        "lowMemoryClass": { "type": "boolean" }
+      }
+    },
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["vulkan", "openGLES"],
+      "properties": {
+        "vulkan": { "type": "boolean" },
+        "openGLES": { "type": "boolean" },
+        "supports32BitGuest": { "type": ["boolean", "null"] },
+        "preferredRendererFamilies": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "defaultPreset": {
+          "type": "string",
+          "enum": ["auto", "performance", "balanced", "compatibility", "ultra-compatibility", "custom"]
+        },
+        "avoidRenderers": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string" }
+        },
+        "notes": { "type": "string" }
+      }
+    }
+  }
+}
