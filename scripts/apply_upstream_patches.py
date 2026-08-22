@@ -11,8 +11,15 @@ def replace_exact(text: str, old: str, new: str, expected: int, label: str) -> s
     old_count = text.count(old)
     new_count = text.count(new)
 
-    if old_count == 0 and new_count == expected:
-        return text
+    # Already-patched detection must also work when `new` contains `old`
+    # (for example, appending a listener after an existing line). Remove the
+    # expected patched blocks first and only treat the file as fully patched
+    # when no standalone upstream occurrences remain outside them.
+    if new_count == expected:
+        without_new = text.replace(new, "")
+        if without_new.count(old) == 0:
+            return text
+
     if old_count != expected:
         raise RuntimeError(
             f"{label}: expected {expected} upstream occurrence(s), found {old_count}; "
