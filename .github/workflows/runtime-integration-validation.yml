@@ -10,6 +10,7 @@ on:
       - "validation/**"
       - "scripts/test_runtime_integration.sh"
       - "scripts/validate_box64_baseline_asset.sh"
+      - "scripts/validate_minimal_container_pattern.sh"
       - "scripts/apply_upstream_patches.py"
       - "scripts/instrument_process_helper.py"
       - "scripts/patch_guest_launcher_bootstrap.py"
@@ -24,6 +25,7 @@ on:
       - "validation/**"
       - "scripts/test_runtime_integration.sh"
       - "scripts/validate_box64_baseline_asset.sh"
+      - "scripts/validate_minimal_container_pattern.sh"
       - "scripts/apply_upstream_patches.py"
       - "scripts/instrument_process_helper.py"
       - "scripts/patch_guest_launcher_bootstrap.py"
@@ -95,6 +97,9 @@ jobs:
 
       - name: Validate pinned Box64 package layout
         run: sh scripts/validate_box64_baseline_asset.sh
+
+      - name: Validate minimal container pattern prerequisites
+        run: sh scripts/validate_minimal_container_pattern.sh
 
       - name: Prepare Winlator Build overlay
         run: sh scripts/prepare_upstream_tree.sh
