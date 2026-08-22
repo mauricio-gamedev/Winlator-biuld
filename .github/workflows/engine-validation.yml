@@ -1,0 +1,29 @@
+name: Engine validation
+
+on:
+  push:
+    paths:
+      - "engine/**"
+      - "scripts/test_engine.sh"
+      - ".github/workflows/engine-validation.yml"
+  pull_request:
+    paths:
+      - "engine/**"
+      - "scripts/test_engine.sh"
+      - ".github/workflows/engine-validation.yml"
+
+jobs:
+  core-policy-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Compile and run engine self-tests
+        run: sh scripts/test_engine.sh
