@@ -110,7 +110,7 @@ def test_apply_and_idempotency() -> None:
         assert 'activity.getPackageName()+".FileProvider"' in file_utils
 
         app_utils = paths["app/src/main/java/com/winlator/core/AppUtils.java"].read_text(encoding="utf-8")
-        assert 'com.winlator.BuildConfig.APPLICATION_ID' in app_utils
+        assert '/data/data/com.winlator.buildtest/storage' in app_utils
 
         assert "/data/data/com.winlator.buildtest/cache" in paths[
             "app/src/main/cpp/winlator/include/winlator.h"
