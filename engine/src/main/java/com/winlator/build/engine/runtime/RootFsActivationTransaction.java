@@ -118,7 +118,7 @@ public final class RootFsActivationTransaction {
     }
 
     private boolean rollbackInternal() {
-        boolean ok = true;
+        boolean allOk = true;
 
         if (hadActiveRoot && existsNoFollow(backupRoot)) {
             for (int i = movedPreservedPaths.size() - 1; i >= 0; i--) {
@@ -127,21 +127,23 @@ public final class RootFsActivationTransaction {
                 File target = new File(backupRoot, relative);
                 if (!existsNoFollow(source)) continue;
 
+                boolean pathOk = true;
                 File parent = target.getParentFile();
-                if (parent != null && !parent.isDirectory() && !parent.mkdirs()) ok = false;
-                if (existsNoFollow(target) && !deleteTree(target)) ok = false;
-                if (ok && !source.renameTo(target)) ok = false;
+                if (parent != null && !parent.isDirectory() && !parent.mkdirs()) pathOk = false;
+                if (existsNoFollow(target) && !deleteTree(target)) pathOk = false;
+                if (pathOk && !source.renameTo(target)) pathOk = false;
+                if (!pathOk) allOk = false;
             }
         }
 
-        if (existsNoFollow(activeRoot) && !deleteTree(activeRoot)) ok = false;
+        if (existsNoFollow(activeRoot) && !deleteTree(activeRoot)) allOk = false;
 
         if (hadActiveRoot) {
-            if (!existsNoFollow(backupRoot) || !backupRoot.renameTo(activeRoot)) ok = false;
+            if (!existsNoFollow(backupRoot) || !backupRoot.renameTo(activeRoot)) allOk = false;
         }
 
-        if (ok) state = State.ROLLED_BACK;
-        return ok;
+        if (allOk) state = State.ROLLED_BACK;
+        return allOk;
     }
 
     private void requireState(State expected) {
