@@ -54,11 +54,24 @@ RootFS / GLIBC baseline:
 - [x] Isolate the validation APK as `com.winlator.buildtest`, including Java/native runtime paths and FileProvider authority.
 - [x] Upload the successful validation APK as a short-lived CI artifact.
 - [x] Document the Android RootFS validation protocol.
-- [ ] Validate RootFS installation/repair on an Android device.
+- [x] Validate initial RootFS installation on Android device.
+- [x] Validate reopen/no-reinstall-loop behavior on Android device.
+- [x] Validate transactional `Reinstall system files` path on Android device.
+
+Box64 baseline:
+
+- [x] Confirm pinned upstream Box64 version is 0.4.4.
+- [x] Map upstream Box64 extraction, launch path and preset model.
+- [ ] Add strict Box64 baseline inspection.
+- [ ] Verify `/usr/local/bin/box64` after extraction.
+- [ ] Verify default `/etc/config.box64rc` deployment.
+- [ ] Validate selected/current Box64 version state without mutating Wine/container state.
+- [ ] Add safe Box64 repair/update path.
+- [ ] Validate Box64 baseline on Android device.
 
 Remaining Core 0.2 runtime work:
 
-- [ ] Integrate rootfs/glibc baseline end-to-end on device.
+- [x] Integrate rootfs/glibc baseline end-to-end on device.
 - [ ] Integrate Box64 baseline.
 - [ ] Integrate Wine baseline.
 - [ ] Create/delete/start containers through the new coordinator.
