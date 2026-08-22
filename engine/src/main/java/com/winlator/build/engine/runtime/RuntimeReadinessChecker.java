@@ -19,7 +19,12 @@ public final class RuntimeReadinessChecker {
         }
 
         boolean runtimeBaseReady = inventory.isRuntimeBaseReady();
-        if (!runtimeBaseReady) issues.add("runtime base/rootfs is not ready");
+        if (!runtimeBaseReady) {
+            String explanation = inventory.explainRuntimeBaseUnavailable();
+            issues.add(explanation == null || explanation.isEmpty()
+                    ? "runtime base/rootfs is not ready"
+                    : explanation);
+        }
 
         for (ComponentRegistry.Component component : plan.getRequiredComponents()) {
             if (!inventory.isComponentAvailable(component)) {
