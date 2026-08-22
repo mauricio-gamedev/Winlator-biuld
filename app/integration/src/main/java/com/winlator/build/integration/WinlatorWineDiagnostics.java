@@ -5,10 +5,9 @@ import android.view.View;
 import android.widget.Button;
 
 import com.winlator.R;
-import com.winlator.build.engine.runtime.Box64Inspection;
-import com.winlator.build.engine.runtime.Box64Inspector;
 import com.winlator.build.engine.runtime.WineInspection;
 import com.winlator.build.engine.runtime.WineInspector;
+import com.winlator.build.engine.runtime.WineSpec;
 import com.winlator.contentdialog.ContentDialog;
 
 public final class WinlatorWineDiagnostics {
@@ -17,10 +16,7 @@ public final class WinlatorWineDiagnostics {
     public static void show(Context context) {
         if (context == null) return;
 
-        Box64Inspection box64 = new Box64Inspector().inspect(new WinlatorBox64Probe(context));
-        WineInspection inspection = new WineInspector().inspect(
-                new WinlatorWineProbe(context, box64.isLaunchReady()));
-
+        WineInspection inspection = new WineInspector().inspect(new WinlatorWineProbe(context));
         ContentDialog dialog = new ContentDialog(context);
         dialog.setTitle("Wine baseline");
         dialog.setMessage(format(inspection));
@@ -36,15 +32,14 @@ public final class WinlatorWineDiagnostics {
     static String format(WineInspection inspection) {
         StringBuilder builder = new StringBuilder();
         append(builder, "Status", inspection.getStatus().name());
-        append(builder, "Expected", inspection.getExpectedVersion());
+        append(builder, "Expected", WineSpec.VERSION);
         append(builder, "RootFS ready", yesNo(inspection.isRootFsReady()));
         append(builder, "Box64 ready", yesNo(inspection.isBox64Ready()));
-        append(builder, "Wine directory", yesNo(inspection.isWineDirectoryPresent()));
-        append(builder, "wine present", yesNo(inspection.isWineBinaryPresent()));
-        append(builder, "wine runnable", yesNo(inspection.isWineBinaryRunnable()));
+        append(builder, "Wine directory", yesNo(inspection.isWineDirPresent()));
+        append(builder, "wine present", yesNo(inspection.isWinePresent()));
+        append(builder, "wine runnable", yesNo(inspection.isWineRunnable()));
         append(builder, "wineserver present", yesNo(inspection.isWineServerPresent()));
         append(builder, "wineserver runnable", yesNo(inspection.isWineServerRunnable()));
-        append(builder, "wine64 present", yesNo(inspection.isWine64BinaryPresent()));
         append(builder, "Launch ready", yesNo(inspection.isLaunchReady()));
 
         if (!inspection.getIssues().isEmpty()) {
