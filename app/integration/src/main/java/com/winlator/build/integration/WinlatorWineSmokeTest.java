@@ -14,6 +14,10 @@ import com.winlator.xenvironment.XEnvironment;
 import com.winlator.xenvironment.components.GuestProgramLauncherComponent;
 
 import java.io.File;
+import java.io.RandomAccessFile;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -75,6 +79,7 @@ public final class WinlatorWineSmokeTest {
         checkpoint(diagnostics, "rootfs=" + rootFS.getRootDir().getPath());
         checkpoint(diagnostics, "box64=" + describeFile(box64));
         checkpoint(diagnostics, "wine=" + describeFile(wine));
+        appendElfInterpreterDiagnostics(diagnostics, rootFS.getRootDir(), box64);
 
         XEnvironment environment = new XEnvironment(activity, rootFS);
         GuestProgramLauncherComponent launcher = new GuestProgramLauncherComponent();
@@ -166,6 +171,96 @@ public final class WinlatorWineSmokeTest {
                 ? "Box64 launched Wine and wine --version exited cleanly."
                 : "Process finished, but exit status/output did not prove a valid Wine launch.";
         return new Result(passed, false, status, captured, snapshot(diagnostics), message);
+    }
+
+    private static void appendElfInterpreterDiagnostics(StringBuilder diagnostics, File rootDir, File binary) {
+        try {
+            String interpreter = readElfInterpreter(binary);
+            if (interpreter == null || interpreter.isEmpty()) {
+                checkpoint(diagnostics, "box64:PT_INTERP=<none>");
+                return;
+            }
+            File hostInterpreter = new File(interpreter);
+            File rootfsInterpreter = new File(rootDir, interpreter.startsWith("/") ? interpreter.substring(1) : interpreter);
+            checkpoint(diagnostics, "box64:PT_INTERP=" + interpreter);
+            checkpoint(diagnostics, "box64:interp-host=" + describeFile(hostInterpreter));
+            checkpoint(diagnostics, "box64:interp-rootfs=" + describeFile(rootfsInterpreter));
+        } catch (Throwable error) {
+            checkpoint(diagnostics, "box64:PT_INTERP error=" + error.getClass().getSimpleName());
+        }
+    }
+
+    private static String readElfInterpreter(File file) throws Exception {
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
+            byte[] ident = new byte[16];
+            raf.readFully(ident);
+            if (ident[0] != 0x7f || ident[1] != 'E' || ident[2] != 'L' || ident[3] != 'F') {
+                throw new IllegalArgumentException("not ELF");
+            }
+            int elfClass = ident[4] & 0xff;
+            int data = ident[5] & 0xff;
+            ByteOrder order = data == 2 ? ByteOrder.BIG_ENDIAN : ByteOrder.LITTLE_ENDIAN;
+
+            long phoff;
+            int phentsize;
+            int phnum;
+            if (elfClass == 2) {
+                phoff = readLong(raf, 32, order);
+                phentsize = readUnsignedShort(raf, 54, order);
+                phnum = readUnsignedShort(raf, 56, order);
+            } else if (elfClass == 1) {
+                phoff = readUnsignedInt(raf, 28, order);
+                phentsize = readUnsignedShort(raf, 42, order);
+                phnum = readUnsignedShort(raf, 44, order);
+            } else {
+                throw new IllegalArgumentException("unsupported ELF class");
+            }
+
+            for (int i = 0; i < phnum; i++) {
+                long entry = phoff + (long)i * phentsize;
+                long type = readUnsignedInt(raf, entry, order);
+                if (type != 3) continue; // PT_INTERP
+
+                long offset;
+                long size;
+                if (elfClass == 2) {
+                    offset = readLong(raf, entry + 8, order);
+                    size = readLong(raf, entry + 32, order);
+                } else {
+                    offset = readUnsignedInt(raf, entry + 4, order);
+                    size = readUnsignedInt(raf, entry + 16, order);
+                }
+                if (size <= 0 || size > 4096) throw new IllegalArgumentException("invalid PT_INTERP size");
+                byte[] raw = new byte[(int)size];
+                raf.seek(offset);
+                raf.readFully(raw);
+                int length = 0;
+                while (length < raw.length && raw[length] != 0) length++;
+                return new String(raw, 0, length, StandardCharsets.UTF_8);
+            }
+            return null;
+        }
+    }
+
+    private static int readUnsignedShort(RandomAccessFile raf, long offset, ByteOrder order) throws Exception {
+        byte[] bytes = new byte[2];
+        raf.seek(offset);
+        raf.readFully(bytes);
+        return ByteBuffer.wrap(bytes).order(order).getShort() & 0xffff;
+    }
+
+    private static long readUnsignedInt(RandomAccessFile raf, long offset, ByteOrder order) throws Exception {
+        byte[] bytes = new byte[4];
+        raf.seek(offset);
+        raf.readFully(bytes);
+        return ByteBuffer.wrap(bytes).order(order).getInt() & 0xffffffffL;
+    }
+
+    private static long readLong(RandomAccessFile raf, long offset, ByteOrder order) throws Exception {
+        byte[] bytes = new byte[8];
+        raf.seek(offset);
+        raf.readFully(bytes);
+        return ByteBuffer.wrap(bytes).order(order).getLong();
     }
 
     private static String describeFile(File file) {
