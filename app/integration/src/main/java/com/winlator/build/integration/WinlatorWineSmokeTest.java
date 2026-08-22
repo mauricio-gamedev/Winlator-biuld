@@ -1,9 +1,8 @@
 package com.winlator.build.integration;
 
-import android.os.Process;
-
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.winlator.box64.Box64Preset;
 import com.winlator.build.engine.runtime.WineInspection;
 import com.winlator.build.engine.runtime.WineInspector;
 import com.winlator.build.engine.runtime.WineSpec;
@@ -11,12 +10,10 @@ import com.winlator.core.Callback;
 import com.winlator.core.EnvVars;
 import com.winlator.core.ProcessHelper;
 import com.winlator.xenvironment.RootFS;
+import com.winlator.xenvironment.XEnvironment;
+import com.winlator.xenvironment.components.GuestProgramLauncherComponent;
 
 import java.io.File;
-import java.io.RandomAccessFile;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -26,7 +23,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 public final class WinlatorWineSmokeTest {
     private static final long TIMEOUT_SECONDS = 15L;
     private static final int MAX_OUTPUT_CHARS = 8192;
-    private static final String ROOTFS_LOADER = "lib/ld-linux-aarch64.so.1";
 
     public static final class Result {
         public final boolean passed;
@@ -77,34 +73,21 @@ public final class WinlatorWineSmokeTest {
         File rootDir = rootFS.getRootDir();
         File wine = new File(rootDir, WineSpec.WINE_RELATIVE_PATH);
         File box64 = new File(rootDir, "usr/local/bin/box64");
-        File loader = new File(rootDir, ROOTFS_LOADER);
+        File loader = new File(rootDir, "lib/ld-linux-aarch64.so.1");
         checkpoint(diagnostics, "rootfs=" + rootDir.getPath());
+        checkpoint(diagnostics, "loader=" + describeFile(loader));
         checkpoint(diagnostics, "box64=" + describeFile(box64));
         checkpoint(diagnostics, "wine=" + describeFile(wine));
-        checkpoint(diagnostics, "bootstrap-loader=" + describeFile(loader));
-        appendElfInterpreterDiagnostics(diagnostics, rootDir, box64);
 
-        if (!loader.isFile() || !loader.canExecute()) {
-            return new Result(false, false, -1, "", snapshot(diagnostics),
-                    "Explicit RootFS loader bootstrap is unavailable.");
-        }
+        XEnvironment environment = new XEnvironment(activity, rootFS);
+        GuestProgramLauncherComponent launcher = new GuestProgramLauncherComponent();
+        launcher.setBox64Preset(Box64Preset.STABILITY);
+        launcher.setGuestExecutable(wine.getPath() + " --version");
 
-        EnvVars envVars = new EnvVars();
-        envVars.put("HOME", rootDir + RootFS.HOME_PATH);
-        envVars.put("USER", RootFS.USER);
-        envVars.put("TMPDIR", rootDir + "/tmp");
-        envVars.put("PATH", rootDir + rootFS.getWinePath() + "/bin:"
-                + rootDir + "/usr/local/bin:" + rootDir + "/usr/bin");
-        envVars.put("LD_LIBRARY_PATH", rootFS.getLibDir().getPath());
-        envVars.put("BOX64_LD_LIBRARY_PATH", rootDir + "/lib/x86_64-linux-gnu");
-        envVars.put("BOX64_RCFILE", rootDir + "/etc/config.box64rc");
-        envVars.put("BOX64_LOG", "1");
-        envVars.put("BOX64_NOBANNER", "0");
-        envVars.put("BOX64_DYNAREC", "1");
-
-        String command = loader.getPath() + " " + box64.getPath() + " " + wine.getPath() + " --version";
-        checkpoint(diagnostics, "bootstrap:command=" + command);
-        checkpoint(diagnostics, "bootstrap:LD_LIBRARY_PATH=" + rootFS.getLibDir().getPath());
+        EnvVars diagnosticEnv = new EnvVars();
+        diagnosticEnv.put("BOX64_LOG", "1");
+        diagnosticEnv.put("BOX64_NOBANNER", "0");
+        launcher.setEnvVars(diagnosticEnv);
 
         CountDownLatch latch = new CountDownLatch(1);
         AtomicInteger exitCode = new AtomicInteger(Integer.MIN_VALUE);
@@ -118,27 +101,23 @@ public final class WinlatorWineSmokeTest {
                 }
             }
         };
-        Callback<Integer> terminationCallback = status -> {
+
+        launcher.setTerminationCallback(status -> {
             exitCode.set(status);
             checkpoint(diagnostics, "terminationCallback:status=" + status);
             latch.countDown();
-        };
-
+        });
+        environment.addComponent(launcher);
         ProcessHelper.addDebugCallback(debugCallback);
-        int pid = -1;
+
         boolean timedOut = false;
         long startedAt = System.nanoTime();
         boolean sampled1s = false;
         boolean sampled5s = false;
         try {
-            checkpoint(diagnostics, "bootstrap:start requested");
-            pid = ProcessHelper.exec(command, envVars, rootDir, terminationCallback);
-            checkpoint(diagnostics, "bootstrap:pid=" + pid);
-            if (pid < 0) {
-                appendOutputCheckpoint(diagnostics, output, "output@start-failure");
-                return new Result(false, false, -1, snapshot(output), snapshot(diagnostics),
-                        "Explicit loader bootstrap failed before a process PID was obtained.");
-            }
+            checkpoint(diagnostics, "launcher:start requested");
+            environment.startEnvironmentComponents();
+            checkpoint(diagnostics, "launcher:start returned");
 
             while (true) {
                 if (latch.await(250, TimeUnit.MILLISECONDS)) break;
@@ -163,16 +142,14 @@ public final class WinlatorWineSmokeTest {
         } catch (Throwable error) {
             checkpoint(diagnostics, "exception=" + error.getClass().getSimpleName() + ":" + error.getMessage());
             return new Result(false, false, -1, snapshot(output), snapshot(diagnostics),
-                    "Explicit loader smoke test failed: " + error.getClass().getSimpleName());
+                    "Guest launcher smoke test failed: " + error.getClass().getSimpleName());
         } finally {
             checkpoint(diagnostics, "cleanup:start");
-            if (timedOut && pid > 0) {
-                try {
-                    Process.killProcess(pid);
-                    checkpoint(diagnostics, "cleanup:killed pid=" + pid);
-                } catch (Throwable error) {
-                    checkpoint(diagnostics, "cleanup:kill error=" + error.getClass().getSimpleName());
-                }
+            try {
+                environment.stopEnvironmentComponents();
+                checkpoint(diagnostics, "cleanup:environment stopped");
+            } catch (Throwable error) {
+                checkpoint(diagnostics, "cleanup:error=" + error.getClass().getSimpleName());
             }
             ProcessHelper.removeDebugCallback(debugCallback);
             checkpoint(diagnostics, "cleanup:debug callback removed");
@@ -180,7 +157,7 @@ public final class WinlatorWineSmokeTest {
 
         if (timedOut) {
             return new Result(false, true, -1, snapshot(output), snapshot(diagnostics),
-                    "Explicit RootFS loader bootstrap timed out after " + TIMEOUT_SECONDS + " seconds.");
+                    "Guest launcher smoke test timed out after " + TIMEOUT_SECONDS + " seconds.");
         }
 
         int status = exitCode.get();
@@ -189,100 +166,9 @@ public final class WinlatorWineSmokeTest {
         boolean passed = status == 0 && versionSeen;
         checkpoint(diagnostics, "result:versionSeen=" + versionSeen + ",exitCode=" + status);
         String message = passed
-                ? "RootFS loader launched Box64, and Box64 launched Wine successfully."
-                : "Explicit loader process finished, but output/status did not prove a valid Wine launch.";
+                ? "GuestProgramLauncherComponent launched Box64 and Wine successfully."
+                : "Guest launcher finished, but status/output did not prove a valid Wine launch.";
         return new Result(passed, false, status, captured, snapshot(diagnostics), message);
-    }
-
-    private static void appendElfInterpreterDiagnostics(StringBuilder diagnostics, File rootDir, File binary) {
-        try {
-            String interpreter = readElfInterpreter(binary);
-            if (interpreter == null || interpreter.isEmpty()) {
-                checkpoint(diagnostics, "box64:PT_INTERP=<none>");
-                return;
-            }
-            File hostInterpreter = new File(interpreter);
-            File rootfsInterpreter = new File(rootDir,
-                    interpreter.startsWith("/") ? interpreter.substring(1) : interpreter);
-            checkpoint(diagnostics, "box64:PT_INTERP=" + interpreter);
-            checkpoint(diagnostics, "box64:interp-host=" + describeFile(hostInterpreter));
-            checkpoint(diagnostics, "box64:interp-rootfs=" + describeFile(rootfsInterpreter));
-        } catch (Throwable error) {
-            checkpoint(diagnostics, "box64:PT_INTERP error=" + error.getClass().getSimpleName());
-        }
-    }
-
-    private static String readElfInterpreter(File file) throws Exception {
-        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            byte[] ident = new byte[16];
-            raf.readFully(ident);
-            if (ident[0] != 0x7f || ident[1] != 'E' || ident[2] != 'L' || ident[3] != 'F') {
-                throw new IllegalArgumentException("not ELF");
-            }
-            int elfClass = ident[4] & 0xff;
-            int data = ident[5] & 0xff;
-            ByteOrder order = data == 2 ? ByteOrder.BIG_ENDIAN : ByteOrder.LITTLE_ENDIAN;
-
-            long phoff;
-            int phentsize;
-            int phnum;
-            if (elfClass == 2) {
-                phoff = readLong(raf, 32, order);
-                phentsize = readUnsignedShort(raf, 54, order);
-                phnum = readUnsignedShort(raf, 56, order);
-            } else if (elfClass == 1) {
-                phoff = readUnsignedInt(raf, 28, order);
-                phentsize = readUnsignedShort(raf, 42, order);
-                phnum = readUnsignedShort(raf, 44, order);
-            } else {
-                throw new IllegalArgumentException("unsupported ELF class");
-            }
-
-            for (int i = 0; i < phnum; i++) {
-                long entry = phoff + (long)i * phentsize;
-                long type = readUnsignedInt(raf, entry, order);
-                if (type != 3) continue;
-
-                long offset;
-                long size;
-                if (elfClass == 2) {
-                    offset = readLong(raf, entry + 8, order);
-                    size = readLong(raf, entry + 32, order);
-                } else {
-                    offset = readUnsignedInt(raf, entry + 4, order);
-                    size = readUnsignedInt(raf, entry + 16, order);
-                }
-                if (size <= 0 || size > 4096) throw new IllegalArgumentException("invalid PT_INTERP size");
-                byte[] raw = new byte[(int)size];
-                raf.seek(offset);
-                raf.readFully(raw);
-                int length = 0;
-                while (length < raw.length && raw[length] != 0) length++;
-                return new String(raw, 0, length, StandardCharsets.UTF_8);
-            }
-            return null;
-        }
-    }
-
-    private static int readUnsignedShort(RandomAccessFile raf, long offset, ByteOrder order) throws Exception {
-        byte[] bytes = new byte[2];
-        raf.seek(offset);
-        raf.readFully(bytes);
-        return ByteBuffer.wrap(bytes).order(order).getShort() & 0xffff;
-    }
-
-    private static long readUnsignedInt(RandomAccessFile raf, long offset, ByteOrder order) throws Exception {
-        byte[] bytes = new byte[4];
-        raf.seek(offset);
-        raf.readFully(bytes);
-        return ByteBuffer.wrap(bytes).order(order).getInt() & 0xffffffffL;
-    }
-
-    private static long readLong(RandomAccessFile raf, long offset, ByteOrder order) throws Exception {
-        byte[] bytes = new byte[8];
-        raf.seek(offset);
-        raf.readFully(bytes);
-        return ByteBuffer.wrap(bytes).order(order).getLong();
     }
 
     private static String describeFile(File file) {
