@@ -21,9 +21,21 @@ class MainActivity {
 SETTINGS_ORIGINAL = """package com.winlator;
 import com.winlator.xenvironment.RootFSInstaller;
 class SettingsFragment {
+    void setup() {
+        GeneralComponents.initViews(GeneralComponents.Type.BOX64, view.findViewById(R.id.Box64Toolbox), sBox64Version, box64Version, DefaultVersion.BOX64);
+    }
     void x() { RootFSInstaller.install((MainActivity)getActivity()); }
     Object getActivity() { return null; }
 }
+"""
+
+SETTINGS_LAYOUT_ORIGINAL = """                        <Button
+                            style="@style/ButtonNeutral"
+                            android:id="@+id/BTReinstallSystemFiles"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="center_horizontal"
+                            android:text="@string/reinstall_system_files" />
 """
 
 FIXTURES = {
@@ -32,6 +44,7 @@ FIXTURES = {
         '<application android:label="@string/app_name">\n'
         '<provider android:authorities="com.winlator.FileProvider"/>\n'
     ),
+    "app/src/main/res/layout/settings_fragment.xml": SETTINGS_LAYOUT_ORIGINAL,
     "app/src/main/java/com/winlator/core/FileUtils.java": (
         'FileProvider.getUriForFile(activity, "com.winlator.FileProvider", file);\n'
     ),
@@ -100,6 +113,12 @@ def test_apply_and_idempotency() -> None:
         assert main_text.count("WinlatorRootFsMaintenanceController.ensure(this);") == 2
         assert "RootFSInstaller.installIfNeeded(this);" not in main_text
         assert "WinlatorRootFsMaintenanceController.repair((MainActivity)getActivity())" in settings_text
+        assert "import com.winlator.build.integration.WinlatorBox64Diagnostics;" in settings_text
+        assert "WinlatorBox64Diagnostics.show(context)" in settings_text
+
+        settings_layout = paths["app/src/main/res/layout/settings_fragment.xml"].read_text(encoding="utf-8")
+        assert settings_layout.count("BTInspectBox64Baseline") == 1
+        assert settings_layout.count("Inspect Box64 baseline") == 1
 
         assert "applicationId 'com.winlator.buildtest'" in paths["app/build.gradle"].read_text(encoding="utf-8")
         manifest = paths["app/src/main/AndroidManifest.xml"].read_text(encoding="utf-8")
