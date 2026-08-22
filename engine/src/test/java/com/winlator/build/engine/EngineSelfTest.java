@@ -7,6 +7,7 @@ import com.winlator.build.engine.hardware.HardwareCapabilities;
 import com.winlator.build.engine.hardware.HardwareCapabilities.GpuFamily;
 import com.winlator.build.engine.runtime.LaunchRequirements;
 import com.winlator.build.engine.runtime.RuntimeBaseInspectorSelfTest;
+import com.winlator.build.engine.runtime.RuntimeBaseMaintenanceSelfTest;
 import com.winlator.build.engine.runtime.RuntimeComponentCatalog;
 import com.winlator.build.engine.runtime.RuntimeExecutionCoordinatorSelfTest;
 import com.winlator.build.engine.runtime.RuntimeManager;
@@ -33,6 +34,7 @@ public final class EngineSelfTest {
         testRuntimePlanStateMachine();
         RuntimeExecutionCoordinatorSelfTest.runAll();
         RuntimeBaseInspectorSelfTest.runAll();
+        RuntimeBaseMaintenanceSelfTest.runAll();
         System.out.println("EngineSelfTest: all tests passed");
     }
 
