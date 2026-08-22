@@ -4,6 +4,8 @@ import android.content.Context;
 import android.view.View;
 import android.widget.Button;
 
+import androidx.appcompat.app.AppCompatActivity;
+
 import com.winlator.R;
 import com.winlator.build.engine.runtime.WineInspection;
 import com.winlator.build.engine.runtime.WineInspector;
@@ -20,13 +22,55 @@ public final class WinlatorWineDiagnostics {
         ContentDialog dialog = new ContentDialog(context);
         dialog.setTitle("Wine baseline");
         dialog.setMessage(format(inspection));
-        dialog.setBottomBarText("Read-only diagnostic — no Wine prefix/container was created");
 
         View cancel = dialog.findViewById(R.id.BTCancel);
         if (cancel != null) cancel.setVisibility(View.GONE);
         Button confirm = dialog.findViewById(R.id.BTConfirm);
-        if (confirm != null) confirm.setText("OK");
+
+        if (inspection.isLaunchReady() && context instanceof AppCompatActivity && confirm != null) {
+            dialog.setBottomBarText("Controlled smoke test: wine --version via Box64; no container/game is created");
+            confirm.setText("Run smoke test");
+            dialog.setOnConfirmCallback(() -> runSmokeTest((AppCompatActivity)context));
+        } else {
+            dialog.setBottomBarText("Read-only diagnostic — no Wine prefix/container was created");
+            if (confirm != null) confirm.setText("OK");
+        }
         dialog.show();
+    }
+
+    private static void runSmokeTest(AppCompatActivity activity) {
+        ContentDialog progress = new ContentDialog(activity);
+        progress.setTitle("Wine smoke test");
+        progress.setMessage("Running wine --version through Box64…\n\nTimeout: 15 seconds\nNo container or game will be created.");
+        View cancel = progress.findViewById(R.id.BTCancel);
+        if (cancel != null) cancel.setVisibility(View.GONE);
+        Button confirm = progress.findViewById(R.id.BTConfirm);
+        if (confirm != null) {
+            confirm.setText("Running…");
+            confirm.setEnabled(false);
+        }
+        progress.show();
+
+        WinlatorWineSmokeTest.run(activity, result -> {
+            try { progress.dismiss(); } catch (Throwable ignored) {}
+            ContentDialog done = new ContentDialog(activity);
+            done.setTitle(result.passed ? "Wine smoke test PASSED" : "Wine smoke test FAILED");
+            StringBuilder message = new StringBuilder();
+            message.append("Passed: ").append(result.passed ? "YES" : "NO").append('\n');
+            message.append("Timed out: ").append(result.timedOut ? "YES" : "NO").append('\n');
+            message.append("Exit code: ").append(result.exitCode).append('\n');
+            message.append("Result: ").append(result.message);
+            if (!result.output.isEmpty()) {
+                message.append("\n\nCaptured output:\n").append(result.output);
+            }
+            done.setMessage(message.toString());
+            done.setBottomBarText("Guest environment cleanup was requested before showing this result");
+            View doneCancel = done.findViewById(R.id.BTCancel);
+            if (doneCancel != null) doneCancel.setVisibility(View.GONE);
+            Button doneConfirm = done.findViewById(R.id.BTConfirm);
+            if (doneConfirm != null) doneConfirm.setText("OK");
+            done.show();
+        });
     }
 
     static String format(WineInspection inspection) {
