@@ -41,7 +41,7 @@ public final class WinlatorWineDiagnostics {
     private static void runSmokeTest(AppCompatActivity activity) {
         ContentDialog progress = new ContentDialog(activity);
         progress.setTitle("Wine smoke test");
-        progress.setMessage("Running wine --version through Box64…\n\nTimeout: 15 seconds\nNo container or game will be created.");
+        progress.setMessage("Running wine --version through Box64…\n\nTimeout: 15 seconds\nDiagnostic checkpoints enabled\nNo container or game will be created.");
         View cancel = progress.findViewById(R.id.BTCancel);
         if (cancel != null) cancel.setVisibility(View.GONE);
         Button confirm = progress.findViewById(R.id.BTConfirm);
@@ -63,8 +63,11 @@ public final class WinlatorWineDiagnostics {
             if (!result.output.isEmpty()) {
                 message.append("\n\nCaptured output:\n").append(result.output);
             }
+            if (!result.diagnostics.isEmpty()) {
+                message.append("\n\nDiagnostics:\n").append(result.diagnostics);
+            }
             done.setMessage(message.toString());
-            done.setBottomBarText("Guest environment cleanup was requested before showing this result");
+            done.setBottomBarText("Guest cleanup requested; diagnostic state captured before cleanup");
             View doneCancel = done.findViewById(R.id.BTCancel);
             if (doneCancel != null) doneCancel.setVisibility(View.GONE);
             Button doneConfirm = done.findViewById(R.id.BTConfirm);
