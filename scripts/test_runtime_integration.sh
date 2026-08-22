@@ -16,6 +16,7 @@ echo "$ROOT_DIR/app/integration/src/main/java/com/winlator/build/integration/Win
 echo "$ROOT_DIR/app/integration/src/main/java/com/winlator/build/integration/WinlatorRootFsInstaller.java" >> "$SOURCES_FILE"
 echo "$ROOT_DIR/app/integration/src/main/java/com/winlator/build/integration/WinlatorRootFsMaintenanceController.java" >> "$SOURCES_FILE"
 echo "$ROOT_DIR/app/integration/src/main/java/com/winlator/build/integration/WinlatorBox64Probe.java" >> "$SOURCES_FILE"
+echo "$ROOT_DIR/app/integration/src/main/java/com/winlator/build/integration/WinlatorBox64Installer.java" >> "$SOURCES_FILE"
 find "$ROOT_DIR/tests/integration/stubs" -name '*.java' -print >> "$SOURCES_FILE"
 find "$ROOT_DIR/tests/integration/java" -name '*.java' -print >> "$SOURCES_FILE"
 
@@ -24,5 +25,6 @@ java -cp "$OUT_DIR/classes" com.winlator.build.integration.ContainerRuntimeAdapt
 java -cp "$OUT_DIR/classes" com.winlator.build.integration.WinlatorRuntimeBaseProbeSelfTest
 java -cp "$OUT_DIR/classes" com.winlator.build.integration.WinlatorRootFsInstallerSelfTest
 java -cp "$OUT_DIR/classes" com.winlator.build.integration.WinlatorBox64ProbeSelfTest
+java -cp "$OUT_DIR/classes" com.winlator.build.integration.WinlatorBox64InstallerSelfTest
 
 rm -rf "$OUT_DIR"
