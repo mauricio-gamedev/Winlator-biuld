@@ -1,0 +1,72 @@
+package com.winlator.build.integration;
+
+import android.content.Context;
+
+import com.winlator.build.engine.components.ComponentRegistry;
+import com.winlator.build.engine.runtime.RuntimeComponentCatalog;
+import com.winlator.build.engine.runtime.RuntimeInventory;
+import com.winlator.core.GeneralComponents;
+import com.winlator.xenvironment.RootFS;
+
+import java.util.List;
+
+public final class WinlatorRuntimeInventory implements RuntimeInventory {
+    private final Context context;
+
+    public WinlatorRuntimeInventory(Context context) {
+        if (context == null) throw new IllegalArgumentException("context is required");
+        Context appContext = context.getApplicationContext();
+        this.context = appContext != null ? appContext : context;
+    }
+
+    @Override
+    public boolean isRuntimeBaseReady() {
+        return RootFS.find(context).isValid();
+    }
+
+    @Override
+    public boolean isComponentAvailable(ComponentRegistry.Component component) {
+        if (component == null) return false;
+
+        String id = component.getId();
+        if (RuntimeComponentCatalog.WINE_MAIN.equals(id)
+                || RuntimeComponentCatalog.VORTEK.equals(id)
+                || RuntimeComponentCatalog.ZINK.equals(id)
+                || RuntimeComponentCatalog.VIRGL.equals(id)
+                || RuntimeComponentCatalog.GLADIO.equals(id)) {
+            return true;
+        }
+
+        GeneralComponents.Type type = mapType(component);
+        if (type == null) return false;
+
+        String version = component.getVersion();
+        if (GeneralComponents.isBuiltinComponent(type, version)) return true;
+        return containsIgnoreCase(GeneralComponents.getInstalledComponentNames(type, context), version);
+    }
+
+    @Override
+    public String explainUnavailable(ComponentRegistry.Component component) {
+        if (component == null) return "runtime component metadata is missing";
+        return "runtime component is not bundled or installed: "
+                + component.getId() + " (" + component.getVersion() + ")";
+    }
+
+    private static GeneralComponents.Type mapType(ComponentRegistry.Component component) {
+        String type = component.getType();
+        if ("box64".equalsIgnoreCase(type)) return GeneralComponents.Type.BOX64;
+        if ("dxvk".equalsIgnoreCase(type)) return GeneralComponents.Type.DXVK;
+        if ("vkd3d".equalsIgnoreCase(type)) return GeneralComponents.Type.VKD3D;
+        if ("wined3d".equalsIgnoreCase(type)) return GeneralComponents.Type.WINED3D;
+        if (RuntimeComponentCatalog.TURNIP.equals(component.getId())) return GeneralComponents.Type.TURNIP;
+        return null;
+    }
+
+    private static boolean containsIgnoreCase(List<String> values, String expected) {
+        if (values == null || expected == null) return false;
+        for (String value : values) {
+            if (expected.equalsIgnoreCase(value)) return true;
+        }
+        return false;
+    }
+}
