@@ -4,6 +4,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+VALIDATION_APPLICATION_ID = "com.winlator.buildtest"
+
 
 def replace_exact(text: str, old: str, new: str, expected: int, label: str) -> str:
     old_count = text.count(old)
@@ -20,6 +22,9 @@ def replace_exact(text: str, old: str, new: str, expected: int, label: str) -> s
 
 
 def patch_file(path: Path, replacements: list[tuple[str, str, int, str]]) -> None:
+    if not path.is_file():
+        raise RuntimeError(f"required upstream file is missing: {path}")
+
     original = path.read_text(encoding="utf-8")
     updated = original
     for old, new, expected, label in replacements:
@@ -37,16 +42,12 @@ def main() -> int:
         return 2
 
     upstream = Path(sys.argv[1]).resolve()
-    java_root = upstream / "app" / "src" / "main" / "java" / "com" / "winlator"
-    main_activity = java_root / "MainActivity.java"
-    settings_fragment = java_root / "SettingsFragment.java"
-
-    for path in (main_activity, settings_fragment):
-        if not path.is_file():
-            raise RuntimeError(f"required upstream file is missing: {path}")
+    app_root = upstream / "app"
+    java_root = app_root / "src" / "main" / "java" / "com" / "winlator"
+    cpp_root = app_root / "src" / "main" / "cpp"
 
     patch_file(
-        main_activity,
+        java_root / "MainActivity.java",
         [
             (
                 "import com.winlator.xenvironment.RootFSInstaller;",
@@ -64,7 +65,7 @@ def main() -> int:
     )
 
     patch_file(
-        settings_fragment,
+        java_root / "SettingsFragment.java",
         [
             (
                 "import com.winlator.xenvironment.RootFSInstaller;",
@@ -77,6 +78,99 @@ def main() -> int:
                 "WinlatorRootFsMaintenanceController.repair((MainActivity)getActivity())",
                 1,
                 "SettingsFragment reinstall-system-files hook",
+            ),
+        ],
+    )
+
+    # Validation builds must install beside the official Winlator. Keep the Java/JNI
+    # namespace unchanged, but isolate the Android application id and every runtime
+    # path/authority that upstream hard-codes to com.winlator.
+    patch_file(
+        app_root / "build.gradle",
+        [
+            (
+                "applicationId 'com.winlator'",
+                f"applicationId '{VALIDATION_APPLICATION_ID}'",
+                1,
+                "validation application id",
+            ),
+        ],
+    )
+
+    patch_file(
+        app_root / "src" / "main" / "AndroidManifest.xml",
+        [
+            (
+                'android:label="@string/app_name"',
+                'android:label="Winlator Build Test"',
+                1,
+                "validation app label",
+            ),
+            (
+                'android:authorities="com.winlator.FileProvider"',
+                'android:authorities="${applicationId}.FileProvider"',
+                1,
+                "FileProvider authority",
+            ),
+        ],
+    )
+
+    patch_file(
+        java_root / "core" / "FileUtils.java",
+        [
+            (
+                'FileProvider.getUriForFile(activity, "com.winlator.FileProvider", file)',
+                'FileProvider.getUriForFile(activity, activity.getPackageName()+".FileProvider", file)',
+                1,
+                "FileProvider runtime authority",
+            ),
+        ],
+    )
+
+    patch_file(
+        java_root / "core" / "AppUtils.java",
+        [
+            (
+                'public static final String INTERNAL_STORAGE = "/data/data/com.winlator/storage";',
+                'public static final String INTERNAL_STORAGE = "/data/data/"+com.winlator.BuildConfig.APPLICATION_ID+"/storage";',
+                1,
+                "internal storage application path",
+            ),
+        ],
+    )
+
+    patch_file(
+        cpp_root / "winlator" / "include" / "winlator.h",
+        [
+            (
+                '#define APP_CACHE_DIR "/data/data/com.winlator/cache"',
+                f'#define APP_CACHE_DIR "/data/data/{VALIDATION_APPLICATION_ID}/cache"',
+                1,
+                "native app cache path",
+            ),
+        ],
+    )
+
+    patch_file(
+        cpp_root / "vortekrenderer" / "include" / "vortek.h",
+        [
+            (
+                '#define VORTEK_SERVER_PATH "/data/data/com.winlator/files/rootfs/tmp/.vortek/V0"',
+                f'#define VORTEK_SERVER_PATH "/data/data/{VALIDATION_APPLICATION_ID}/files/rootfs/tmp/.vortek/V0"',
+                1,
+                "Vortek socket path",
+            ),
+        ],
+    )
+
+    patch_file(
+        cpp_root / "gladiorenderer" / "include" / "gladio.h",
+        [
+            (
+                '#define X11_SERVER_PATH "/data/data/com.winlator/files/rootfs/tmp/.X11-unix/X0"',
+                f'#define X11_SERVER_PATH "/data/data/{VALIDATION_APPLICATION_ID}/files/rootfs/tmp/.X11-unix/X0"',
+                1,
+                "Gladio X11 socket path",
             ),
         ],
     )
