@@ -52,6 +52,7 @@ RootFS / GLIBC baseline:
 - [x] Extend integration CI coverage to all app/integration and patcher changes.
 - [x] Add a real Android overlay `assembleDebug` CI gate against the pinned upstream.
 - [x] Isolate the validation APK as `com.winlator.buildtest`, including Java/native runtime paths and FileProvider authority.
+- [x] Persist the validation debug signing key across CI runs so test APK updates can preserve app data.
 - [x] Upload the successful validation APK as a short-lived CI artifact.
 - [x] Document the Android RootFS validation protocol.
 - [x] Validate initial RootFS installation on Android device.
@@ -63,9 +64,12 @@ Box64 baseline:
 - [x] Confirm pinned upstream Box64 version is 0.4.4.
 - [x] Map upstream Box64 extraction, launch path and preset model.
 - [x] Add strict Box64 baseline inspection.
+- [x] Add Android Box64 probe using SharedPreferences, RootFS filesystem and packaged assets.
+- [x] Add read-only Box64 diagnostic UI hook for device validation.
+- [x] Cover the post-RootFS-reinstall Box64 state in integration tests.
 - [ ] Verify `/usr/local/bin/box64` after extraction.
 - [ ] Verify default `/etc/config.box64rc` deployment.
-- [ ] Validate selected/current Box64 version state without mutating Wine/container state.
+- [ ] Validate selected/current Box64 version state on Android without mutating Wine/container state.
 - [ ] Add safe Box64 repair/update path.
 - [ ] Validate Box64 baseline on Android device.
 
