@@ -60,11 +60,16 @@ public final class WinlatorWineDiagnostics {
             message.append("Timed out: ").append(result.timedOut ? "YES" : "NO").append('\n');
             message.append("Exit code: ").append(result.exitCode).append('\n');
             message.append("Result: ").append(result.message);
-            if (!result.output.isEmpty()) {
-                message.append("\n\nCaptured output:\n").append(result.output);
-            }
-            if (!result.diagnostics.isEmpty()) {
-                message.append("\n\nDiagnostics:\n").append(result.diagnostics);
+
+            // Keep successful results compact so the next-gate action is always visible on phones.
+            // Detailed runtime logs are only needed when a smoke test fails.
+            if (!result.passed) {
+                if (!result.output.isEmpty()) {
+                    message.append("\n\nCaptured output:\n").append(result.output);
+                }
+                if (!result.diagnostics.isEmpty()) {
+                    message.append("\n\nDiagnostics:\n").append(result.diagnostics);
+                }
             }
             done.setMessage(message.toString());
 
