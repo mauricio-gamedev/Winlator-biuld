@@ -62,7 +62,7 @@ Box64 baseline:
 
 - [x] Confirm pinned upstream Box64 version is 0.4.4.
 - [x] Map upstream Box64 extraction, launch path and preset model.
-- [ ] Add strict Box64 baseline inspection.
+- [x] Add strict Box64 baseline inspection.
 - [ ] Verify `/usr/local/bin/box64` after extraction.
 - [ ] Verify default `/etc/config.box64rc` deployment.
 - [ ] Validate selected/current Box64 version state without mutating Wine/container state.
