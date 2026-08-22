@@ -67,16 +67,16 @@ Box64 baseline:
 - [x] Add Android Box64 probe using SharedPreferences, RootFS filesystem and packaged assets.
 - [x] Add read-only Box64 diagnostic UI hook for device validation.
 - [x] Cover the post-RootFS-reinstall Box64 state in integration tests.
-- [ ] Verify `/usr/local/bin/box64` after extraction.
-- [ ] Verify default `/etc/config.box64rc` deployment.
-- [ ] Validate selected/current Box64 version state on Android without mutating Wine/container state.
-- [ ] Add safe Box64 repair/update path.
-- [ ] Validate Box64 baseline on Android device.
+- [x] Verify `/usr/local/bin/box64` after extraction.
+- [x] Verify default `/etc/config.box64rc` deployment.
+- [x] Validate selected/current Box64 version state on Android without mutating Wine/container state.
+- [x] Add safe Box64 repair/update path.
+- [x] Validate Box64 baseline on Android device.
 
 Remaining Core 0.2 runtime work:
 
 - [x] Integrate rootfs/glibc baseline end-to-end on device.
-- [ ] Integrate Box64 baseline.
+- [x] Integrate Box64 baseline.
 - [ ] Integrate Wine baseline.
 - [ ] Create/delete/start containers through the new coordinator.
 - [ ] Execute `.exe` inside a container.
