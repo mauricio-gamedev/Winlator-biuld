@@ -11,6 +11,7 @@ on:
       - "scripts/test_runtime_integration.sh"
       - "scripts/validate_box64_baseline_asset.sh"
       - "scripts/apply_upstream_patches.py"
+      - "scripts/instrument_process_helper.py"
       - "scripts/prepare_upstream_tree.sh"
       - ".github/workflows/runtime-integration-validation.yml"
   pull_request:
@@ -23,6 +24,7 @@ on:
       - "scripts/test_runtime_integration.sh"
       - "scripts/validate_box64_baseline_asset.sh"
       - "scripts/apply_upstream_patches.py"
+      - "scripts/instrument_process_helper.py"
       - "scripts/prepare_upstream_tree.sh"
       - ".github/workflows/runtime-integration-validation.yml"
 
@@ -44,6 +46,9 @@ jobs:
 
       - name: Validate upstream patcher
         run: python3 tests/patcher/test_apply_upstream_patches.py
+
+      - name: Validate ProcessHelper diagnostic instrumentation
+        run: python3 tests/patcher/test_instrument_process_helper.py
 
   patched-android-build:
     runs-on: ubuntu-latest
