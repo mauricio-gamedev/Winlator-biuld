@@ -7,6 +7,7 @@ import com.winlator.build.engine.hardware.HardwareCapabilities;
 import com.winlator.build.engine.hardware.HardwareCapabilities.GpuFamily;
 import com.winlator.build.engine.runtime.LaunchRequirements;
 import com.winlator.build.engine.runtime.RuntimeComponentCatalog;
+import com.winlator.build.engine.runtime.RuntimeExecutionCoordinatorSelfTest;
 import com.winlator.build.engine.runtime.RuntimeManager;
 import com.winlator.build.engine.runtime.RuntimePlan;
 import com.winlator.build.engine.runtime.RuntimePlanner;
@@ -29,6 +30,7 @@ public final class EngineSelfTest {
         testDx12WithoutVulkanFailsPlanning();
         testRuntimeStateMachine();
         testRuntimePlanStateMachine();
+        RuntimeExecutionCoordinatorSelfTest.runAll();
         System.out.println("EngineSelfTest: all tests passed");
     }
 
