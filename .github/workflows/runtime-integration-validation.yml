@@ -7,6 +7,7 @@ on:
       - "app/integration/**"
       - "tests/integration/**"
       - "tests/patcher/**"
+      - "validation/**"
       - "scripts/test_runtime_integration.sh"
       - "scripts/validate_box64_baseline_asset.sh"
       - "scripts/apply_upstream_patches.py"
@@ -18,6 +19,7 @@ on:
       - "app/integration/**"
       - "tests/integration/**"
       - "tests/patcher/**"
+      - "validation/**"
       - "scripts/test_runtime_integration.sh"
       - "scripts/validate_box64_baseline_asset.sh"
       - "scripts/apply_upstream_patches.py"
@@ -72,11 +74,14 @@ jobs:
             "ndk;24.0.8215888" \
             "cmake;3.22.1"
 
-      - name: Restore validation debug signing key
-        uses: actions/cache@v4
-        with:
-          path: ~/.android/debug.keystore
-          key: winlator-buildtest-debug-keystore-v1
+      - name: Materialize fixed validation signing key
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/winlator-buildtest-signing"
+          base64 -d validation/buildtest-debug.keystore.b64 > "$RUNNER_TEMP/winlator-buildtest-signing/buildtest.keystore"
+          keytool -list -v \
+            -keystore "$RUNNER_TEMP/winlator-buildtest-signing/buildtest.keystore" \
+            -storepass android -alias buildtest | grep -E 'SHA256:|Alias name:'
 
       - name: Validate pinned Box64 package layout
         run: sh scripts/validate_box64_baseline_asset.sh
@@ -84,11 +89,53 @@ jobs:
       - name: Prepare Winlator Build overlay
         run: sh scripts/prepare_upstream_tree.sh
 
+      - name: Configure deterministic validation signing and version
+        shell: bash
+        env:
+          WINLATOR_BUILDTEST_VERSION_CODE: ${{ github.run_number }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('third_party/winlator-app/app/build.gradle')
+          text = p.read_text(encoding='utf-8')
+          text = text.replace(
+              'versionCode 32',
+              'versionCode Integer.parseInt(System.getenv("WINLATOR_BUILDTEST_VERSION_CODE") ?: "100000")',
+              1,
+          )
+          text = text.replace(
+              '    buildTypes {\n        debug {',
+              '''    signingConfigs {
+                  buildtest {
+                      storeFile file(System.getenv("WINLATOR_BUILDTEST_KEYSTORE"))
+                      storePassword 'android'
+                      keyAlias 'buildtest'
+                      keyPassword 'android'
+                  }
+              }
+
+              buildTypes {
+                  debug {
+                      signingConfig signingConfigs.buildtest''',
+              1,
+          )
+          p.write_text(text, encoding='utf-8')
+          PY
+
       - name: Assemble patched debug APK
         working-directory: third_party/winlator-app
+        env:
+          WINLATOR_BUILDTEST_KEYSTORE: ${{ runner.temp }}/winlator-buildtest-signing/buildtest.keystore
+          WINLATOR_BUILDTEST_VERSION_CODE: ${{ github.run_number }}
         run: |
           chmod +x gradlew
           ./gradlew :app:assembleDebug --stacktrace --no-daemon
+
+      - name: Verify APK signing certificate
+        shell: bash
+        run: |
+          APK=$(find third_party/winlator-app/app/build/outputs/apk/debug -name '*.apk' -print -quit)
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$APK"
 
       - name: Upload Android validation APK
         uses: actions/upload-artifact@v4
