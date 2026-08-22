@@ -39,6 +39,12 @@ public final class ComponentRegistry {
         public String getType() { return type; }
         public String getStatus() { return status; }
 
+        private static boolean isAndroidHostArchitecture(String architecture) {
+            return "arm64-v8a".equalsIgnoreCase(architecture)
+                    || "armeabi-v7a".equalsIgnoreCase(architecture)
+                    || "aarch64".equalsIgnoreCase(architecture);
+        }
+
         public boolean isCompatible(HardwareCapabilities hardware) {
             if (hardware == null) return false;
             if ("deprecated".equalsIgnoreCase(status)) return false;
@@ -47,14 +53,15 @@ public final class ComponentRegistry {
             if (requiresVulkan && !hardware.hasVulkan()) return false;
 
             if (!architectures.isEmpty()) {
-                boolean architectureMatch = false;
+                boolean hasHostArchitectureConstraint = false;
+                boolean hostArchitectureMatch = false;
                 for (String architecture : architectures) {
-                    if (hardware.supportsAbi(architecture)) {
-                        architectureMatch = true;
-                        break;
+                    if (isAndroidHostArchitecture(architecture)) {
+                        hasHostArchitectureConstraint = true;
+                        if (hardware.supportsAbi(architecture)) hostArchitectureMatch = true;
                     }
                 }
-                if (!architectureMatch) return false;
+                if (hasHostArchitectureConstraint && !hostArchitectureMatch) return false;
             }
 
             return gpuFamilies.isEmpty()
