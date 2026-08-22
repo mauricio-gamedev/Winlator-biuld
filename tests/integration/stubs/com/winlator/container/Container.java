@@ -1,5 +1,8 @@
 package com.winlator.container;
 
+import java.util.HashMap;
+import java.util.Map;
+
 public class Container {
     private String graphicsDriver = "old,gl";
     private String graphicsDriverConfig = "graphics-config";
@@ -8,6 +11,7 @@ public class Container {
     private String box64Preset = "OLD";
     private String wineVersion = "wine-10.10-custom";
     private int saveCount;
+    private final Map<String, String> extras = new HashMap<>();
 
     public String getGraphicsDriver() { return graphicsDriver; }
     public void setGraphicsDriver(String value) { graphicsDriver = value; }
@@ -23,4 +27,14 @@ public class Container {
     public void setWineVersion(String value) { wineVersion = value; }
     public void saveData() { saveCount++; }
     public int getSaveCount() { return saveCount; }
+
+    public String getExtra(String name) {
+        String value = extras.get(name);
+        return value == null ? "" : value;
+    }
+
+    public void putExtra(String name, Object value) {
+        if (value == null) extras.remove(name);
+        else extras.put(name, String.valueOf(value));
+    }
 }
