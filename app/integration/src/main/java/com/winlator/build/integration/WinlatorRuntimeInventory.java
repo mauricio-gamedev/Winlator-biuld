@@ -3,25 +3,33 @@ package com.winlator.build.integration;
 import android.content.Context;
 
 import com.winlator.build.engine.components.ComponentRegistry;
+import com.winlator.build.engine.runtime.RuntimeBaseInspection;
+import com.winlator.build.engine.runtime.RuntimeBaseInspector;
 import com.winlator.build.engine.runtime.RuntimeComponentCatalog;
 import com.winlator.build.engine.runtime.RuntimeInventory;
 import com.winlator.core.GeneralComponents;
-import com.winlator.xenvironment.RootFS;
 
 import java.util.List;
 
 public final class WinlatorRuntimeInventory implements RuntimeInventory {
     private final Context context;
+    private final RuntimeBaseInspection runtimeBaseInspection;
 
     public WinlatorRuntimeInventory(Context context) {
         if (context == null) throw new IllegalArgumentException("context is required");
         Context appContext = context.getApplicationContext();
         this.context = appContext != null ? appContext : context;
+        this.runtimeBaseInspection = new RuntimeBaseInspector().inspect(
+                new WinlatorRuntimeBaseProbe(this.context));
     }
 
     @Override
     public boolean isRuntimeBaseReady() {
-        return RootFS.find(context).isValid();
+        return runtimeBaseInspection.isLaunchReady();
+    }
+
+    public RuntimeBaseInspection getRuntimeBaseInspection() {
+        return runtimeBaseInspection;
     }
 
     @Override
