@@ -26,17 +26,53 @@ class SettingsFragment {
 }
 """
 
+FIXTURES = {
+    "app/build.gradle": "applicationId 'com.winlator'\n",
+    "app/src/main/AndroidManifest.xml": (
+        '<application android:label="@string/app_name">\n'
+        '<provider android:authorities="com.winlator.FileProvider"/>\n'
+    ),
+    "app/src/main/java/com/winlator/core/FileUtils.java": (
+        'FileProvider.getUriForFile(activity, "com.winlator.FileProvider", file);\n'
+    ),
+    "app/src/main/java/com/winlator/core/AppUtils.java": (
+        'public static final String INTERNAL_STORAGE = "/data/data/com.winlator/storage";\n'
+    ),
+    "app/src/main/cpp/winlator/include/winlator.h": (
+        '#define APP_CACHE_DIR "/data/data/com.winlator/cache"\n'
+    ),
+    "app/src/main/cpp/vortekrenderer/include/vortek.h": (
+        '#define VORTEK_SERVER_PATH "/data/data/com.winlator/files/rootfs/tmp/.vortek/V0"\n'
+    ),
+    "app/src/main/cpp/gladiorenderer/include/gladio.h": (
+        '#define X11_SERVER_PATH "/data/data/com.winlator/files/rootfs/tmp/.X11-unix/X0"\n'
+    ),
+}
+
+
+def write(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+
 
 def make_fixture(base: Path, main_text: str = MAIN_ORIGINAL,
-                 settings_text: str = SETTINGS_ORIGINAL) -> tuple[Path, Path, Path]:
+                 settings_text: str = SETTINGS_ORIGINAL) -> tuple[Path, dict[str, Path]]:
     upstream = base / "winlator-app"
-    java_root = upstream / "app" / "src" / "main" / "java" / "com" / "winlator"
-    java_root.mkdir(parents=True)
-    main = java_root / "MainActivity.java"
-    settings = java_root / "SettingsFragment.java"
-    main.write_text(main_text, encoding="utf-8")
-    settings.write_text(settings_text, encoding="utf-8")
-    return upstream, main, settings
+    paths: dict[str, Path] = {}
+
+    main = upstream / "app/src/main/java/com/winlator/MainActivity.java"
+    settings = upstream / "app/src/main/java/com/winlator/SettingsFragment.java"
+    write(main, main_text)
+    write(settings, settings_text)
+    paths["main"] = main
+    paths["settings"] = settings
+
+    for relative, content in FIXTURES.items():
+        path = upstream / relative
+        write(path, content)
+        paths[relative] = path
+
+    return upstream, paths
 
 
 def run_patcher(upstream: Path) -> subprocess.CompletedProcess[str]:
@@ -49,25 +85,47 @@ def run_patcher(upstream: Path) -> subprocess.CompletedProcess[str]:
     )
 
 
+def snapshot(paths: dict[str, Path]) -> dict[str, str]:
+    return {key: path.read_text(encoding="utf-8") for key, path in paths.items()}
+
+
 def test_apply_and_idempotency() -> None:
     with tempfile.TemporaryDirectory(prefix="winlator-patcher-") as tmp:
-        upstream, main, settings = make_fixture(Path(tmp))
+        upstream, paths = make_fixture(Path(tmp))
         first = run_patcher(upstream)
         assert first.returncode == 0, first.stderr
 
-        main_text = main.read_text(encoding="utf-8")
-        settings_text = settings.read_text(encoding="utf-8")
+        main_text = paths["main"].read_text(encoding="utf-8")
+        settings_text = paths["settings"].read_text(encoding="utf-8")
         assert main_text.count("WinlatorRootFsMaintenanceController.ensure(this);") == 2
         assert "RootFSInstaller.installIfNeeded(this);" not in main_text
         assert "WinlatorRootFsMaintenanceController.repair((MainActivity)getActivity())" in settings_text
 
-        snapshot = (main_text, settings_text)
+        assert "applicationId 'com.winlator.buildtest'" in paths["app/build.gradle"].read_text(encoding="utf-8")
+        manifest = paths["app/src/main/AndroidManifest.xml"].read_text(encoding="utf-8")
+        assert 'android:label="Winlator Build Test"' in manifest
+        assert 'android:authorities="${applicationId}.FileProvider"' in manifest
+
+        file_utils = paths["app/src/main/java/com/winlator/core/FileUtils.java"].read_text(encoding="utf-8")
+        assert 'activity.getPackageName()+".FileProvider"' in file_utils
+
+        app_utils = paths["app/src/main/java/com/winlator/core/AppUtils.java"].read_text(encoding="utf-8")
+        assert 'com.winlator.BuildConfig.APPLICATION_ID' in app_utils
+
+        assert "/data/data/com.winlator.buildtest/cache" in paths[
+            "app/src/main/cpp/winlator/include/winlator.h"
+        ].read_text(encoding="utf-8")
+        assert "/data/data/com.winlator.buildtest/files/rootfs/tmp/.vortek/V0" in paths[
+            "app/src/main/cpp/vortekrenderer/include/vortek.h"
+        ].read_text(encoding="utf-8")
+        assert "/data/data/com.winlator.buildtest/files/rootfs/tmp/.X11-unix/X0" in paths[
+            "app/src/main/cpp/gladiorenderer/include/gladio.h"
+        ].read_text(encoding="utf-8")
+
+        first_snapshot = snapshot(paths)
         second = run_patcher(upstream)
         assert second.returncode == 0, second.stderr
-        assert snapshot == (
-            main.read_text(encoding="utf-8"),
-            settings.read_text(encoding="utf-8"),
-        )
+        assert first_snapshot == snapshot(paths)
 
 
 def test_upstream_drift_fails_closed() -> None:
@@ -75,7 +133,7 @@ def test_upstream_drift_fails_closed() -> None:
         drifted_main = MAIN_ORIGINAL.replace(
             "    void b() { RootFSInstaller.installIfNeeded(this); }\n", ""
         )
-        upstream, _, _ = make_fixture(Path(tmp), main_text=drifted_main)
+        upstream, _ = make_fixture(Path(tmp), main_text=drifted_main)
         result = run_patcher(upstream)
         assert result.returncode != 0
         assert "expected 2 upstream occurrence" in result.stderr
