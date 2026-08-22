@@ -17,7 +17,10 @@ import com.winlator.xenvironment.RootFS;
 import com.winlator.xenvironment.RootFSInstaller;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
 import java.util.Arrays;
+import java.util.Properties;
 import java.util.UUID;
 
 public final class WinlatorRootFsInstaller {
@@ -26,6 +29,8 @@ public final class WinlatorRootFsInstaller {
         SUCCESS_WITH_WARNING,
         NOT_NEEDED,
         BLOCKED,
+        INSUFFICIENT_STORAGE,
+        RECOVERY_FAILED,
         EXTRACTION_FAILED,
         STAGING_INVALID,
         ACTIVATION_FAILED,
@@ -62,17 +67,34 @@ public final class WinlatorRootFsInstaller {
 
     private static final String PRESERVE_HOME = "home";
     private static final String PRESERVE_INSTALLED_WINE = "opt/installed-wine";
+    private static final String JOURNAL_FILE = ".winlator-build-rootfs-transaction";
+    private static final long STORAGE_MARGIN_BYTES = 64L * 1024L * 1024L;
 
     private WinlatorRootFsInstaller() {}
 
-    public static Result installOrRepair(AppCompatActivity activity) {
+    public static synchronized Result installOrRepair(AppCompatActivity activity) {
         return installOrRepair(activity, false);
     }
 
-    public static Result installOrRepair(AppCompatActivity activity, boolean forceRepair) {
+    public static synchronized Result installOrRepair(AppCompatActivity activity,
+            boolean forceRepair) {
         if (activity == null) throw new IllegalArgumentException("activity is required");
 
         RuntimeBaseInspector inspector = new RuntimeBaseInspector();
+        RootFS rootFS = RootFS.find(activity);
+        File activeRoot = rootFS.getRootDir();
+        File parent = activeRoot.getAbsoluteFile().getParentFile();
+        if (parent == null || (!parent.isDirectory() && !parent.mkdirs())) {
+            return result(Status.BLOCKED, null, null,
+                    "Unable to prepare RootFS parent directory", false);
+        }
+
+        String recoveryError = recoverInterruptedTransaction(activeRoot, parent);
+        if (!recoveryError.isEmpty()) {
+            RuntimeBaseInspection current = inspectSafely(inspector, activity);
+            return result(Status.RECOVERY_FAILED, current, current, recoveryError, false);
+        }
+
         WinlatorRuntimeBaseProbe currentProbe = new WinlatorRuntimeBaseProbe(activity);
         RuntimeBaseInspection before = inspector.inspect(currentProbe);
 
@@ -96,22 +118,28 @@ public final class WinlatorRootFsInstaller {
                     "RootFS patch asset is unavailable: " + RuntimeBaseSpec.ROOTFS_PATCHES_ASSET, false);
         }
 
-        RootFS rootFS = RootFS.find(activity);
-        File activeRoot = rootFS.getRootDir();
-        File parent = activeRoot.getAbsoluteFile().getParentFile();
-        if (parent == null || (!parent.isDirectory() && !parent.mkdirs())) {
-            return result(Status.BLOCKED, before, before,
-                    "Unable to prepare RootFS parent directory", false);
+        long expandedBytes = TarCompressorUtils.getContentLength(
+                TarCompressorUtils.Type.ZSTD, activity,
+                RuntimeBaseSpec.ROOTFS_ASSET, activeRoot);
+        long usableBytes = parent.getUsableSpace();
+        if (expandedBytes > 0 && usableBytes > 0
+                && usableBytes < expandedBytes + STORAGE_MARGIN_BYTES) {
+            return result(Status.INSUFFICIENT_STORAGE, before, before,
+                    "Not enough free storage for safe RootFS staging. Required approximately "
+                            + (expandedBytes + STORAGE_MARGIN_BYTES) + " bytes, available "
+                            + usableBytes + " bytes", false);
         }
 
         File stagingRoot = new File(parent,
                 activeRoot.getName() + ".staging-" + UUID.randomUUID().toString().replace("-", ""));
+        File journal = new File(parent, JOURNAL_FILE);
         if (!stagingRoot.mkdirs()) {
             return result(Status.BLOCKED, before, before,
                     "Unable to create RootFS staging directory", false);
         }
 
         RootFsActivationTransaction transaction = null;
+        boolean journalResolved = true;
         try {
             boolean extracted = TarCompressorUtils.extract(
                     TarCompressorUtils.Type.ZSTD,
@@ -149,19 +177,36 @@ public final class WinlatorRootFsInstaller {
                     activeRoot,
                     stagingRoot,
                     Arrays.asList(PRESERVE_HOME, PRESERVE_INSTALLED_WINE));
+            if (!writeJournal(journal, transaction.getBackupRoot(), stagingRoot)) {
+                return result(Status.BLOCKED, before, before,
+                        "Unable to create RootFS transaction journal", false);
+            }
+            journalResolved = false;
+
             try {
                 transaction.activate();
             } catch (RuntimeException e) {
+                boolean rolledBack = transaction.getState()
+                        == RootFsActivationTransaction.State.ROLLED_BACK;
+                if (rolledBack || transaction.getState() == RootFsActivationTransaction.State.NEW) {
+                    journalResolved = deleteJournal(journal);
+                }
                 Status status = messageOf(e).contains("rollback failed")
                         ? Status.ROLLBACK_FAILED : Status.ACTIVATION_FAILED;
+                String message = messageOf(e);
+                if (!journalResolved) {
+                    message = appendWarning(message,
+                            "transaction journal was kept for recovery on the next attempt");
+                }
                 return result(status, before, inspectSafely(inspector, activity),
-                        messageOf(e), status != Status.ROLLBACK_FAILED);
+                        message, rolledBack);
             }
 
             RuntimeBaseInspection after = inspectSafely(inspector, activity);
             if (!after.isLaunchReady()
                     || after.getStatus() != RuntimeBaseInspection.Status.CURRENT) {
                 boolean rolledBack = transaction.rollback();
+                if (rolledBack) journalResolved = deleteJournal(journal);
                 return result(rolledBack ? Status.FINAL_VALIDATION_FAILED : Status.ROLLBACK_FAILED,
                         before, after,
                         appendRollback(joinIssues(after), rolledBack), rolledBack);
@@ -174,6 +219,12 @@ public final class WinlatorRootFsInstaller {
                         "RootFS was activated but old backup cleanup failed");
             }
 
+            journalResolved = deleteJournal(journal);
+            if (!journalResolved) {
+                warning = appendWarning(warning,
+                        "RootFS is valid, but transaction journal cleanup failed");
+            }
+
             RuntimeBaseInspection committed = inspectSafely(inspector, activity);
             if (warning.isEmpty()) {
                 return result(Status.SUCCESS, before, committed,
@@ -181,8 +232,83 @@ public final class WinlatorRootFsInstaller {
             }
             return result(Status.SUCCESS_WITH_WARNING, before, committed, warning, false);
         } finally {
-            if (stagingRoot.exists()) FileUtils.delete(stagingRoot);
+            if (stagingRoot.exists() && journalResolved) FileUtils.delete(stagingRoot);
         }
+    }
+
+    private static String recoverInterruptedTransaction(File activeRoot, File parent) {
+        File journal = new File(parent, JOURNAL_FILE);
+        if (!journal.isFile()) return "";
+
+        Properties properties = new Properties();
+        try (FileInputStream input = new FileInputStream(journal)) {
+            properties.load(input);
+        } catch (IOException | RuntimeException e) {
+            return "Unable to read interrupted RootFS transaction journal: " + e.getClass().getSimpleName();
+        }
+
+        String backupName = properties.getProperty("backup", "").trim();
+        String stagingName = properties.getProperty("staging", "").trim();
+        if (!isSafeSiblingName(backupName, activeRoot.getName() + ".backup-")
+                || !isSafeSiblingName(stagingName, activeRoot.getName() + ".staging-")) {
+            return "Interrupted RootFS transaction journal contains unsafe paths";
+        }
+
+        File backup = new File(parent, backupName);
+        File staging = new File(parent, stagingName);
+
+        if (backup.exists()) {
+            if (activeRoot.exists()) {
+                if (!restorePreservedPath(activeRoot, backup, PRESERVE_HOME)) {
+                    return "Unable to restore preserved home directory from interrupted RootFS transaction";
+                }
+                if (!restorePreservedPath(activeRoot, backup, PRESERVE_INSTALLED_WINE)) {
+                    return "Unable to restore installed Wine directory from interrupted RootFS transaction";
+                }
+                if (!FileUtils.delete(activeRoot)) {
+                    return "Unable to remove interrupted staged RootFS during recovery";
+                }
+            }
+            if (!backup.renameTo(activeRoot)) {
+                return "Unable to restore RootFS backup from interrupted transaction";
+            }
+        }
+
+        if (staging.exists() && !FileUtils.delete(staging)) {
+            return "Unable to clean interrupted RootFS staging directory";
+        }
+        if (!deleteJournal(journal)) {
+            return "RootFS recovery completed but transaction journal could not be removed";
+        }
+        return "";
+    }
+
+    private static boolean restorePreservedPath(File activeRoot, File backupRoot,
+            String relativePath) {
+        File backupPath = new File(backupRoot, relativePath);
+        if (backupPath.exists()) return true;
+
+        File activePath = new File(activeRoot, relativePath);
+        if (!activePath.exists()) return true;
+        File parent = backupPath.getParentFile();
+        if (parent != null && !parent.isDirectory() && !parent.mkdirs()) return false;
+        return activePath.renameTo(backupPath);
+    }
+
+    private static boolean writeJournal(File journal, File backup, File staging) {
+        String data = "backup=" + backup.getName() + "\n"
+                + "staging=" + staging.getName() + "\n";
+        return FileUtils.writeString(journal, data);
+    }
+
+    private static boolean deleteJournal(File journal) {
+        return !journal.exists() || journal.delete();
+    }
+
+    private static boolean isSafeSiblingName(String name, String expectedPrefix) {
+        return name != null && !name.isEmpty() && name.startsWith(expectedPrefix)
+                && name.indexOf('/') == -1 && name.indexOf('\\') == -1
+                && name.indexOf("..") == -1;
     }
 
     private static String resetPostInstallState(AppCompatActivity activity) {
