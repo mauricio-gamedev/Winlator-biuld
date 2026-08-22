@@ -3,7 +3,6 @@ package com.winlator.core;
 import android.content.Context;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 
 public abstract class GeneralComponents {
     public enum Type { BOX64, TURNIP, DXVK, VKD3D, WINED3D, SOUNDFONT, ADRENOTOOLS_DRIVER }
@@ -21,6 +20,6 @@ public abstract class GeneralComponents {
     }
 
     public static ArrayList<String> getInstalledComponentNames(Type type, Context context) {
-        return new ArrayList<>(Arrays.asList());
+        return new ArrayList<String>();
     }
 }
