@@ -8,6 +8,7 @@ on:
       - "tests/integration/**"
       - "tests/patcher/**"
       - "scripts/test_runtime_integration.sh"
+      - "scripts/validate_box64_baseline_asset.sh"
       - "scripts/apply_upstream_patches.py"
       - "scripts/prepare_upstream_tree.sh"
       - ".github/workflows/runtime-integration-validation.yml"
@@ -18,6 +19,7 @@ on:
       - "tests/integration/**"
       - "tests/patcher/**"
       - "scripts/test_runtime_integration.sh"
+      - "scripts/validate_box64_baseline_asset.sh"
       - "scripts/apply_upstream_patches.py"
       - "scripts/prepare_upstream_tree.sh"
       - ".github/workflows/runtime-integration-validation.yml"
@@ -75,6 +77,9 @@ jobs:
         with:
           path: ~/.android/debug.keystore
           key: winlator-buildtest-debug-keystore-v1
+
+      - name: Validate pinned Box64 package layout
+        run: sh scripts/validate_box64_baseline_asset.sh
 
       - name: Prepare Winlator Build overlay
         run: sh scripts/prepare_upstream_tree.sh
