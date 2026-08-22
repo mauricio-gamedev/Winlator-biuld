@@ -13,6 +13,11 @@ import java.io.IOException;
 public final class WinlatorRuntimeBaseProbeSelfTest {
     private WinlatorRuntimeBaseProbeSelfTest() {}
 
+    public static void main(String[] args) throws Exception {
+        runAll();
+        System.out.println("WinlatorRuntimeBaseProbeSelfTest: all tests passed");
+    }
+
     public static void runAll() throws Exception {
         testCurrentRootFsIsReady();
         testOutdatedRootFsIsBlocked();
