@@ -14,6 +14,7 @@ public final class ComponentRegistry {
     public static final class Component {
         private final String id;
         private final String type;
+        private final String version;
         private final String status;
         private final List<String> architectures;
         private final List<GpuFamily> gpuFamilies;
@@ -24,9 +25,17 @@ public final class ComponentRegistry {
         public Component(String id, String type, String status, List<String> architectures,
                 List<GpuFamily> gpuFamilies, int minAndroidApi, Integer maxAndroidApi,
                 boolean requiresVulkan) {
+            this(id, type, "", status, architectures, gpuFamilies, minAndroidApi, maxAndroidApi,
+                    requiresVulkan);
+        }
+
+        public Component(String id, String type, String version, String status,
+                List<String> architectures, List<GpuFamily> gpuFamilies, int minAndroidApi,
+                Integer maxAndroidApi, boolean requiresVulkan) {
             if (id == null || id.trim().isEmpty()) throw new IllegalArgumentException("component id is required");
             this.id = id.trim();
             this.type = type == null ? "" : type.trim();
+            this.version = version == null ? "" : version.trim();
             this.status = status == null ? "" : status.trim();
             this.architectures = architectures == null ? Collections.<String>emptyList() : Collections.unmodifiableList(new ArrayList<>(architectures));
             this.gpuFamilies = gpuFamilies == null ? Collections.<GpuFamily>emptyList() : Collections.unmodifiableList(new ArrayList<>(gpuFamilies));
@@ -37,7 +46,10 @@ public final class ComponentRegistry {
 
         public String getId() { return id; }
         public String getType() { return type; }
+        public String getVersion() { return version; }
         public String getStatus() { return status; }
+        public List<String> getArchitectures() { return architectures; }
+        public boolean requiresVulkan() { return requiresVulkan; }
 
         private static boolean isAndroidHostArchitecture(String architecture) {
             return "arm64-v8a".equalsIgnoreCase(architecture)
