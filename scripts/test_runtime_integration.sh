@@ -14,6 +14,7 @@ echo "$ROOT_DIR/app/integration/src/main/java/com/winlator/build/integration/Con
 echo "$ROOT_DIR/app/integration/src/main/java/com/winlator/build/integration/WinlatorRuntimeBaseProbe.java" >> "$SOURCES_FILE"
 echo "$ROOT_DIR/app/integration/src/main/java/com/winlator/build/integration/WinlatorRuntimeInventory.java" >> "$SOURCES_FILE"
 echo "$ROOT_DIR/app/integration/src/main/java/com/winlator/build/integration/WinlatorRootFsInstaller.java" >> "$SOURCES_FILE"
+echo "$ROOT_DIR/app/integration/src/main/java/com/winlator/build/integration/WinlatorRootFsMaintenanceController.java" >> "$SOURCES_FILE"
 find "$ROOT_DIR/tests/integration/stubs" -name '*.java' -print >> "$SOURCES_FILE"
 find "$ROOT_DIR/tests/integration/java" -name '*.java' -print >> "$SOURCES_FILE"
 
