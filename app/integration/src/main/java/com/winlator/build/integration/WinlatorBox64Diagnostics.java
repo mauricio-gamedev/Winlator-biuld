@@ -2,6 +2,9 @@ package com.winlator.build.integration;
 
 import android.content.Context;
 import android.view.View;
+import android.widget.Button;
+
+import androidx.appcompat.app.AppCompatActivity;
 
 import com.winlator.R;
 import com.winlator.build.engine.runtime.Box64Inspection;
@@ -18,9 +21,21 @@ public final class WinlatorBox64Diagnostics {
         ContentDialog dialog = new ContentDialog(context);
         dialog.setTitle("Box64 baseline");
         dialog.setMessage(format(inspection));
-        dialog.setBottomBarText("Read-only diagnostic — no runtime files were changed");
+
         View cancel = dialog.findViewById(R.id.BTCancel);
         if (cancel != null) cancel.setVisibility(View.GONE);
+
+        Button confirm = dialog.findViewById(R.id.BTConfirm);
+        if (!inspection.isLaunchReady() && inspection.canRepair()
+                && context instanceof AppCompatActivity && confirm != null) {
+            dialog.setBottomBarText("Validated staging + rollback protection will be used before changing the runtime");
+            confirm.setText("Prepare Box64");
+            dialog.setOnConfirmCallback(() ->
+                    WinlatorBox64MaintenanceController.prepare((AppCompatActivity)context));
+        } else {
+            dialog.setBottomBarText("Read-only diagnostic — no runtime files were changed");
+            if (confirm != null) confirm.setText("OK");
+        }
         dialog.show();
     }
 
