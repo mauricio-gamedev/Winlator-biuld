@@ -1,0 +1,33 @@
+name: Runtime integration validation
+
+on:
+  push:
+    paths:
+      - "engine/**"
+      - "app/integration/src/main/java/com/winlator/build/integration/ContainerRuntimeAdapter.java"
+      - "tests/integration/**"
+      - "scripts/test_runtime_integration.sh"
+      - ".github/workflows/runtime-integration-validation.yml"
+  pull_request:
+    paths:
+      - "engine/**"
+      - "app/integration/src/main/java/com/winlator/build/integration/ContainerRuntimeAdapter.java"
+      - "tests/integration/**"
+      - "scripts/test_runtime_integration.sh"
+      - ".github/workflows/runtime-integration-validation.yml"
+
+jobs:
+  runtime-plan-transaction:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Compile and run runtime integration self-tests
+        run: sh scripts/test_runtime_integration.sh
