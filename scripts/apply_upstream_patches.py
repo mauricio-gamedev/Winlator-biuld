@@ -69,15 +69,55 @@ def main() -> int:
         [
             (
                 "import com.winlator.xenvironment.RootFSInstaller;",
-                "import com.winlator.build.integration.WinlatorRootFsMaintenanceController;",
+                "import com.winlator.build.integration.WinlatorRootFsMaintenanceController;\n"
+                "import com.winlator.build.integration.WinlatorBox64Diagnostics;",
                 1,
-                "SettingsFragment RootFS import",
+                "SettingsFragment runtime maintenance imports",
+            ),
+            (
+                "GeneralComponents.initViews(GeneralComponents.Type.BOX64, view.findViewById(R.id.Box64Toolbox), sBox64Version, box64Version, DefaultVersion.BOX64);",
+                "GeneralComponents.initViews(GeneralComponents.Type.BOX64, view.findViewById(R.id.Box64Toolbox), sBox64Version, box64Version, DefaultVersion.BOX64);\n"
+                "        view.findViewById(R.id.BTInspectBox64Baseline).setOnClickListener((v) -> WinlatorBox64Diagnostics.show(context));",
+                1,
+                "SettingsFragment Box64 diagnostic hook",
             ),
             (
                 "RootFSInstaller.install((MainActivity)getActivity())",
                 "WinlatorRootFsMaintenanceController.repair((MainActivity)getActivity())",
                 1,
                 "SettingsFragment reinstall-system-files hook",
+            ),
+        ],
+    )
+
+    patch_file(
+        app_root / "src" / "main" / "res" / "layout" / "settings_fragment.xml",
+        [
+            (
+                '''                        <Button
+                            style="@style/ButtonNeutral"
+                            android:id="@+id/BTReinstallSystemFiles"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="center_horizontal"
+                            android:text="@string/reinstall_system_files" />''',
+                '''                        <Button
+                            style="@style/ButtonNeutral"
+                            android:id="@+id/BTReinstallSystemFiles"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="center_horizontal"
+                            android:text="@string/reinstall_system_files" />
+
+                        <Button
+                            style="@style/ButtonNeutral"
+                            android:id="@+id/BTInspectBox64Baseline"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="8dp"
+                            android:text="Inspect Box64 baseline" />''',
+                1,
+                "Settings Box64 diagnostic button",
             ),
         ],
     )
