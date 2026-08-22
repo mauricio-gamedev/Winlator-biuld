@@ -15,5 +15,6 @@ rm -rf "$JAVA_ROOT/engine" "$JAVA_ROOT/integration"
 mkdir -p "$JAVA_ROOT/engine" "$JAVA_ROOT/integration"
 cp -R "$ROOT_DIR/engine/src/main/java/com/winlator/build/engine/." "$JAVA_ROOT/engine/"
 cp -R "$ROOT_DIR/app/integration/src/main/java/com/winlator/build/integration/." "$JAVA_ROOT/integration/"
+python3 "$ROOT_DIR/scripts/apply_upstream_patches.py" "$UPSTREAM_DIR"
 
 echo "Winlator Build overlay prepared in $UPSTREAM_DIR"
