@@ -37,12 +37,21 @@ RootFS / GLIBC baseline:
 - [x] Verify presence of libc.so.6 and the ARM64 glibc loader.
 - [x] Verify rootfs_patches.tzst availability before launch readiness.
 - [x] Keep rootfs.tzst as install/repair readiness rather than a launch requirement.
-- [ ] Integrate safe RootFS install/repair execution.
-- [ ] Validate RootFS installation on an Android device.
+- [x] Integrate safe RootFS install/repair execution.
+- [x] Extract into a sibling staging RootFS before activation.
+- [x] Preserve home and opt/installed-wine across RootFS replacement.
+- [x] Validate staging before writing the RootFS v22 marker.
+- [x] Validate the active RootFS again before commit.
+- [x] Add rollback to the previous RootFS on activation/final-validation failure.
+- [x] Add phase-aware transaction journal for process-death recovery.
+- [x] Add free-storage preflight before staging extraction.
+- [x] Block automatic downgrade of a future/unvalidated RootFS.
+- [x] Extend integration CI coverage to all app/integration changes.
+- [ ] Validate RootFS installation/repair on an Android device.
 
 Remaining Core 0.2 runtime work:
 
-- [ ] Integrate rootfs/glibc baseline end-to-end.
+- [ ] Integrate rootfs/glibc baseline end-to-end on device.
 - [ ] Integrate Box64 baseline.
 - [ ] Integrate Wine baseline.
 - [ ] Create/delete/start containers through the new coordinator.
