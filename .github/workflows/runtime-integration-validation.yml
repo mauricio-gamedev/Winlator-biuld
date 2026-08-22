@@ -12,6 +12,7 @@ on:
       - "scripts/validate_box64_baseline_asset.sh"
       - "scripts/apply_upstream_patches.py"
       - "scripts/instrument_process_helper.py"
+      - "scripts/patch_guest_launcher_bootstrap.py"
       - "scripts/prepare_upstream_tree.sh"
       - ".github/workflows/runtime-integration-validation.yml"
   pull_request:
@@ -25,6 +26,7 @@ on:
       - "scripts/validate_box64_baseline_asset.sh"
       - "scripts/apply_upstream_patches.py"
       - "scripts/instrument_process_helper.py"
+      - "scripts/patch_guest_launcher_bootstrap.py"
       - "scripts/prepare_upstream_tree.sh"
       - ".github/workflows/runtime-integration-validation.yml"
 
@@ -49,6 +51,9 @@ jobs:
 
       - name: Validate ProcessHelper diagnostic instrumentation
         run: python3 tests/patcher/test_instrument_process_helper.py
+
+      - name: Validate guest launcher bootstrap patch
+        run: python3 tests/patcher/test_guest_launcher_bootstrap.py
 
   patched-android-build:
     runs-on: ubuntu-latest
