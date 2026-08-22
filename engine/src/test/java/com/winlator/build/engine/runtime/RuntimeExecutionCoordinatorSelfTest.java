@@ -13,13 +13,14 @@ public final class RuntimeExecutionCoordinatorSelfTest {
         testReadinessFailureDoesNotApply();
         testInvalidPlanDoesNotApply();
         testCommitFailureRollsBack();
+        testRollbackFailureIsSurfaced();
         testInvalidManagerStateDoesNotApply();
     }
 
     private static void testSuccessfulPreparationCommitsOnce() {
         RuntimeManager manager = new RuntimeManager();
         RuntimeExecutionCoordinator coordinator = new RuntimeExecutionCoordinator(manager);
-        RecordingApplier applier = new RecordingApplier(false);
+        RecordingApplier applier = new RecordingApplier(false, false);
 
         RuntimeExecutionCoordinator.Result result = coordinator.prepare(
                 maliVulkan11(), LaunchRequirements.defaults(),
@@ -37,7 +38,7 @@ public final class RuntimeExecutionCoordinatorSelfTest {
     private static void testReadinessFailureDoesNotApply() {
         RuntimeManager manager = new RuntimeManager();
         RuntimeExecutionCoordinator coordinator = new RuntimeExecutionCoordinator(manager);
-        RecordingApplier applier = new RecordingApplier(false);
+        RecordingApplier applier = new RecordingApplier(false, false);
 
         RuntimeExecutionCoordinator.Result result = coordinator.prepare(
                 maliVulkan11(), LaunchRequirements.defaults(),
@@ -56,7 +57,7 @@ public final class RuntimeExecutionCoordinatorSelfTest {
     private static void testInvalidPlanDoesNotApply() {
         RuntimeManager manager = new RuntimeManager();
         RuntimeExecutionCoordinator coordinator = new RuntimeExecutionCoordinator(manager);
-        RecordingApplier applier = new RecordingApplier(false);
+        RecordingApplier applier = new RecordingApplier(false, false);
 
         RuntimeExecutionCoordinator.Result result = coordinator.prepare(
                 noVulkan(), LaunchRequirements.forGraphicsApi(LaunchRequirements.GraphicsApi.DIRECTX_12),
@@ -70,7 +71,7 @@ public final class RuntimeExecutionCoordinatorSelfTest {
     private static void testCommitFailureRollsBack() {
         RuntimeManager manager = new RuntimeManager();
         RuntimeExecutionCoordinator coordinator = new RuntimeExecutionCoordinator(manager);
-        RecordingApplier applier = new RecordingApplier(true);
+        RecordingApplier applier = new RecordingApplier(true, false);
 
         RuntimeExecutionCoordinator.Result result = coordinator.prepare(
                 maliVulkan11(), LaunchRequirements.defaults(),
@@ -84,6 +85,20 @@ public final class RuntimeExecutionCoordinatorSelfTest {
         assertEquals(RuntimeManager.State.FAILED, manager.snapshot().getState(), "commit failure marks runtime failed");
     }
 
+    private static void testRollbackFailureIsSurfaced() {
+        RuntimeManager manager = new RuntimeManager();
+        RuntimeExecutionCoordinator coordinator = new RuntimeExecutionCoordinator(manager);
+        RecordingApplier applier = new RecordingApplier(true, true);
+
+        RuntimeExecutionCoordinator.Result result = coordinator.prepare(
+                maliVulkan11(), LaunchRequirements.defaults(),
+                RuntimeComponentCatalog.createPinnedRegistry(), new CompleteInventory(), applier);
+
+        assertEquals(RuntimeExecutionCoordinator.Status.ROLLBACK_FAILED, result.getStatus(), "rollback failure status");
+        assertFalse(result.wasRolledBack(), "rollback failure must not report successful rollback");
+        assertTrue(result.getError().contains("rollback failed"), "rollback failure diagnostic");
+    }
+
     private static void testInvalidManagerStateDoesNotApply() {
         RuntimeManager manager = new RuntimeManager();
         RuntimePlan plan = new RuntimePlanner().plan(
@@ -91,7 +106,7 @@ public final class RuntimeExecutionCoordinatorSelfTest {
         manager.prepare(plan);
 
         RuntimeExecutionCoordinator coordinator = new RuntimeExecutionCoordinator(manager);
-        RecordingApplier applier = new RecordingApplier(false);
+        RecordingApplier applier = new RecordingApplier(false, false);
         RuntimeExecutionCoordinator.Result result = coordinator.prepare(
                 maliVulkan11(), LaunchRequirements.defaults(),
                 RuntimeComponentCatalog.createPinnedRegistry(), new CompleteInventory(), applier);
@@ -118,11 +133,15 @@ public final class RuntimeExecutionCoordinatorSelfTest {
 
     private static final class RecordingApplier implements RuntimePlanApplier {
         private final boolean failCommit;
+        private final boolean failRollback;
         int applyCount;
         int commitCount;
         int rollbackCount;
 
-        RecordingApplier(boolean failCommit) { this.failCommit = failCommit; }
+        RecordingApplier(boolean failCommit, boolean failRollback) {
+            this.failCommit = failCommit;
+            this.failRollback = failRollback;
+        }
 
         public Transaction apply(RuntimePlan plan) {
             applyCount++;
@@ -133,7 +152,10 @@ public final class RuntimeExecutionCoordinatorSelfTest {
                     commitCount++;
                     if (failCommit) throw new IllegalStateException("simulated commit failure");
                 }
-                public void rollback() { rollbackCount++; }
+                public void rollback() {
+                    rollbackCount++;
+                    if (failRollback) throw new IllegalStateException("simulated rollback failure");
+                }
             };
         }
     }
