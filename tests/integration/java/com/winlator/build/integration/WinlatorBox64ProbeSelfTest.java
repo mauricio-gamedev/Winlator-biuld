@@ -19,12 +19,32 @@ public final class WinlatorBox64ProbeSelfTest {
     private WinlatorBox64ProbeSelfTest() {}
 
     public static void main(String[] args) {
+        testPostRootFsReinstallStateIsRepairableNotReady();
         testCurrentBuiltinBox64IsLaunchReadyBeforeRcDeployment();
         testVersionMismatchIsBlocked();
         testMissingBinaryIsBlockedEvenWhenPreferenceMatches();
         testNonRunnableBinaryIsBlocked();
         testMissingRepairPackageDoesNotInvalidateAlreadyExtractedRuntime();
         System.out.println("WinlatorBox64ProbeSelfTest: all tests passed");
+    }
+
+    private static void testPostRootFsReinstallStateIsRepairableNotReady() {
+        Fixture fixture = fixture(false, false, true);
+        try {
+            SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(fixture.context);
+            preferences.edit().putString("box64_version", Box64Spec.VERSION).remove("current_box64_version").apply();
+
+            Box64Inspection inspection = inspect(fixture.context);
+            assertEquals(Box64Inspection.Status.MISSING, inspection.getStatus(), "post-reinstall Box64 status");
+            assertEquals(Box64Spec.VERSION, inspection.getSelectedVersion(), "post-reinstall selected version");
+            assertEquals("", inspection.getCurrentExtractedVersion(), "post-reinstall current version");
+            assertFalse(inspection.isLaunchReady(), "post-reinstall Box64 must not be launch-ready before preparation");
+            assertTrue(inspection.isSelectedPackageAvailable(), "post-reinstall builtin package availability");
+            assertTrue(inspection.isDefaultRcAssetAvailable(), "post-reinstall RC asset availability");
+            assertTrue(inspection.canRepair(), "post-reinstall Box64 should be repairable");
+        } finally {
+            fixture.close();
+        }
     }
 
     private static void testCurrentBuiltinBox64IsLaunchReadyBeforeRcDeployment() {
