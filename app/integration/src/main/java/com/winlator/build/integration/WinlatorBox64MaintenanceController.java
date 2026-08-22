@@ -2,6 +2,7 @@ package com.winlator.build.integration;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.winlator.R;
 import com.winlator.core.AppUtils;
 import com.winlator.core.PreloaderDialog;
 
@@ -20,7 +21,7 @@ public final class WinlatorBox64MaintenanceController {
 
         AppUtils.keepScreenOn(activity);
         final PreloaderDialog dialog = new PreloaderDialog(activity);
-        dialog.showOnUiThread("Preparing Box64 baseline...");
+        dialog.showOnUiThread(R.string.loading);
 
         EXECUTOR.execute(() -> {
             WinlatorBox64Installer.Result result = null;
