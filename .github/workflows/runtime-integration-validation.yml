@@ -4,14 +4,14 @@ on:
   push:
     paths:
       - "engine/**"
-      - "app/integration/src/main/java/com/winlator/build/integration/ContainerRuntimeAdapter.java"
+      - "app/integration/**"
       - "tests/integration/**"
       - "scripts/test_runtime_integration.sh"
       - ".github/workflows/runtime-integration-validation.yml"
   pull_request:
     paths:
       - "engine/**"
-      - "app/integration/src/main/java/com/winlator/build/integration/ContainerRuntimeAdapter.java"
+      - "app/integration/**"
       - "tests/integration/**"
       - "scripts/test_runtime_integration.sh"
       - ".github/workflows/runtime-integration-validation.yml"
