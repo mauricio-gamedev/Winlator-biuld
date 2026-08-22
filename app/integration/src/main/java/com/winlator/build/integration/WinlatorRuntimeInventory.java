@@ -28,6 +28,17 @@ public final class WinlatorRuntimeInventory implements RuntimeInventory {
         return runtimeBaseInspection.isLaunchReady();
     }
 
+    @Override
+    public String explainRuntimeBaseUnavailable() {
+        StringBuilder builder = new StringBuilder();
+        for (String issue : runtimeBaseInspection.getLaunchIssues()) {
+            if (issue == null || issue.isEmpty()) continue;
+            if (builder.length() > 0) builder.append("; ");
+            builder.append(issue);
+        }
+        return builder.length() == 0 ? "runtime base/rootfs is not ready" : builder.toString();
+    }
+
     public RuntimeBaseInspection getRuntimeBaseInspection() {
         return runtimeBaseInspection;
     }
