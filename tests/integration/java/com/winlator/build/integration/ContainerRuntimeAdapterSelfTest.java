@@ -1,8 +1,12 @@
 package com.winlator.build.integration;
 
+import com.winlator.build.engine.components.ComponentRegistry;
 import com.winlator.build.engine.hardware.HardwareCapabilities;
 import com.winlator.build.engine.runtime.LaunchRequirements;
 import com.winlator.build.engine.runtime.RuntimeComponentCatalog;
+import com.winlator.build.engine.runtime.RuntimeExecutionCoordinator;
+import com.winlator.build.engine.runtime.RuntimeInventory;
+import com.winlator.build.engine.runtime.RuntimeManager;
 import com.winlator.build.engine.runtime.RuntimePlan;
 import com.winlator.build.engine.runtime.RuntimePlanner;
 import com.winlator.container.Container;
@@ -13,6 +17,8 @@ public final class ContainerRuntimeAdapterSelfTest {
     public static void main(String[] args) {
         testApplyAndRollback();
         testWineMismatchRejectsWithoutMutation();
+        testCoordinatorCommitsOnlyAfterReady();
+        testCoordinatorReadinessFailureDoesNotTouchContainer();
         System.out.println("ContainerRuntimeAdapterSelfTest: all tests passed");
     }
 
@@ -55,8 +61,66 @@ public final class ContainerRuntimeAdapterSelfTest {
         assertEquals(0, container.getSaveCount(), "rejected plan must not persist");
     }
 
+    private static void testCoordinatorCommitsOnlyAfterReady() {
+        Container container = new Container();
+        RuntimeManager manager = new RuntimeManager();
+        RuntimeExecutionCoordinator coordinator = new RuntimeExecutionCoordinator(manager);
+
+        RuntimeExecutionCoordinator.Result result = coordinator.prepare(
+                createMaliHardware(),
+                LaunchRequirements.forGraphicsApi(LaunchRequirements.GraphicsApi.DIRECTX_9_11),
+                RuntimeComponentCatalog.createPinnedRegistry(),
+                completeInventory(),
+                new ContainerRuntimePlanApplier(container, true));
+
+        assertEquals(RuntimeExecutionCoordinator.Status.READY, result.getStatus(), "coordinator status");
+        assertEquals(RuntimeManager.State.READY, manager.snapshot().getState(), "runtime state");
+        assertEquals("vortek,gladio", container.getGraphicsDriver(), "coordinator graphics driver");
+        assertEquals("dxvk", container.getDXWrapper(), "coordinator DX wrapper");
+        assertEquals("CONSERVATIVE", container.getBox64Preset(), "coordinator Box64 preset");
+        assertEquals(1, container.getSaveCount(), "coordinator should persist exactly once");
+    }
+
+    private static void testCoordinatorReadinessFailureDoesNotTouchContainer() {
+        Container container = new Container();
+        RuntimeManager manager = new RuntimeManager();
+        RuntimeExecutionCoordinator coordinator = new RuntimeExecutionCoordinator(manager);
+
+        RuntimeExecutionCoordinator.Result result = coordinator.prepare(
+                createMaliHardware(), LaunchRequirements.defaults(),
+                RuntimeComponentCatalog.createPinnedRegistry(),
+                new RuntimeInventory() {
+                    public boolean isRuntimeBaseReady() { return false; }
+                    public boolean isComponentAvailable(ComponentRegistry.Component component) { return true; }
+                    public String explainUnavailable(ComponentRegistry.Component component) { return ""; }
+                },
+                new ContainerRuntimePlanApplier(container, true));
+
+        assertEquals(RuntimeExecutionCoordinator.Status.NOT_READY, result.getStatus(), "not-ready status");
+        assertEquals("old,gl", container.getGraphicsDriver(), "not-ready driver must remain unchanged");
+        assertEquals("old-dx", container.getDXWrapper(), "not-ready DX wrapper must remain unchanged");
+        assertEquals("OLD", container.getBox64Preset(), "not-ready Box64 preset must remain unchanged");
+        assertEquals(0, container.getSaveCount(), "not-ready container must not persist");
+        assertEquals(RuntimeManager.State.IDLE, manager.snapshot().getState(), "not-ready manager remains idle");
+    }
+
+    private static RuntimeInventory completeInventory() {
+        return new RuntimeInventory() {
+            public boolean isRuntimeBaseReady() { return true; }
+            public boolean isComponentAvailable(ComponentRegistry.Component component) { return true; }
+            public String explainUnavailable(ComponentRegistry.Component component) { return ""; }
+        };
+    }
+
     private static RuntimePlan createMaliPlan() {
-        HardwareCapabilities hardware = new HardwareCapabilities(
+        return new RuntimePlanner().plan(
+                createMaliHardware(),
+                LaunchRequirements.forGraphicsApi(LaunchRequirements.GraphicsApi.DIRECTX_9_11),
+                RuntimeComponentCatalog.createPinnedRegistry());
+    }
+
+    private static HardwareCapabilities createMaliHardware() {
+        return new HardwareCapabilities(
                 36,
                 Arrays.asList("arm64-v8a", "armeabi-v7a"),
                 4L * 1024 * 1024 * 1024,
@@ -64,11 +128,6 @@ public final class ContainerRuntimeAdapterSelfTest {
                 "ARM",
                 "OpenGL ES 3.2",
                 1, 1, 0);
-
-        return new RuntimePlanner().plan(
-                hardware,
-                LaunchRequirements.forGraphicsApi(LaunchRequirements.GraphicsApi.DIRECTX_9_11),
-                RuntimeComponentCatalog.createPinnedRegistry());
     }
 
     private static void assertTrue(boolean condition, String message) {
