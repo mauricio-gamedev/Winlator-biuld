@@ -28,7 +28,7 @@ public final class WinlatorWineDiagnostics {
         Button confirm = dialog.findViewById(R.id.BTConfirm);
 
         if (inspection.isLaunchReady() && context instanceof AppCompatActivity && confirm != null) {
-            dialog.setBottomBarText("Controlled smoke test: wine --version via Box64; no container/game is created");
+            dialog.setBottomBarText("Controlled smoke test: wine --version via the real guest launcher");
             confirm.setText("Run smoke test");
             dialog.setOnConfirmCallback(() -> runSmokeTest((AppCompatActivity)context));
         } else {
@@ -41,7 +41,7 @@ public final class WinlatorWineDiagnostics {
     private static void runSmokeTest(AppCompatActivity activity) {
         ContentDialog progress = new ContentDialog(activity);
         progress.setTitle("Wine smoke test");
-        progress.setMessage("Running wine --version through Box64…\n\nTimeout: 15 seconds\nDiagnostic checkpoints enabled\nNo container or game will be created.");
+        progress.setMessage("Running wine --version through the real GuestProgramLauncherComponent…\n\nTimeout: 15 seconds\nNo game will be launched.");
         View cancel = progress.findViewById(R.id.BTCancel);
         if (cancel != null) cancel.setVisibility(View.GONE);
         Button confirm = progress.findViewById(R.id.BTConfirm);
@@ -67,7 +67,56 @@ public final class WinlatorWineDiagnostics {
                 message.append("\n\nDiagnostics:\n").append(result.diagnostics);
             }
             done.setMessage(message.toString());
-            done.setBottomBarText("Guest cleanup requested; diagnostic state captured before cleanup");
+
+            View doneCancel = done.findViewById(R.id.BTCancel);
+            Button doneConfirm = done.findViewById(R.id.BTConfirm);
+            if (result.passed && doneConfirm != null) {
+                done.setBottomBarText("Next gate: create and validate one minimal upstream container");
+                if (doneCancel != null) {
+                    doneCancel.setVisibility(View.VISIBLE);
+                    doneCancel.setOnClickListener(v -> done.dismiss());
+                }
+                doneConfirm.setText("Create minimal container");
+                done.setOnConfirmCallback(() -> runMinimalContainerGate(activity));
+            } else {
+                done.setBottomBarText("Guest cleanup requested; diagnostic state captured before cleanup");
+                if (doneCancel != null) doneCancel.setVisibility(View.GONE);
+                if (doneConfirm != null) doneConfirm.setText("OK");
+            }
+            done.show();
+        });
+    }
+
+    private static void runMinimalContainerGate(AppCompatActivity activity) {
+        ContentDialog progress = new ContentDialog(activity);
+        progress.setTitle("Minimal container gate");
+        progress.setMessage("Creating one upstream container with the main Wine runtime and minimal WinComponents…\n\nNo graphical session or game will be launched.");
+        View cancel = progress.findViewById(R.id.BTCancel);
+        if (cancel != null) cancel.setVisibility(View.GONE);
+        Button confirm = progress.findViewById(R.id.BTConfirm);
+        if (confirm != null) {
+            confirm.setText("Creating…");
+            confirm.setEnabled(false);
+        }
+        progress.show();
+
+        WinlatorMinimalContainerGate.create(activity, result -> {
+            try { progress.dismiss(); } catch (Throwable ignored) {}
+            ContentDialog done = new ContentDialog(activity);
+            done.setTitle(result.passed ? "Minimal container PASSED" : "Minimal container FAILED");
+            StringBuilder message = new StringBuilder();
+            message.append("Passed: ").append(result.passed ? "YES" : "NO").append('\n');
+            message.append("Reused: ").append(result.reused ? "YES" : "NO").append('\n');
+            if (result.container != null) {
+                message.append("Container id: ").append(result.container.id).append('\n');
+                message.append("Name: ").append(result.container.getName()).append('\n');
+                message.append("Root: ").append(result.container.getRootDir().getPath()).append('\n');
+            }
+            message.append("Result: ").append(result.message);
+            done.setMessage(message.toString());
+            done.setBottomBarText(result.passed
+                    ? "Container kept for the next prefix/session gate"
+                    : "Invalid test containers are removed automatically");
             View doneCancel = done.findViewById(R.id.BTCancel);
             if (doneCancel != null) doneCancel.setVisibility(View.GONE);
             Button doneConfirm = done.findViewById(R.id.BTConfirm);
