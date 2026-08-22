@@ -6,14 +6,20 @@ on:
       - "engine/**"
       - "app/integration/**"
       - "tests/integration/**"
+      - "tests/patcher/**"
       - "scripts/test_runtime_integration.sh"
+      - "scripts/apply_upstream_patches.py"
+      - "scripts/prepare_upstream_tree.sh"
       - ".github/workflows/runtime-integration-validation.yml"
   pull_request:
     paths:
       - "engine/**"
       - "app/integration/**"
       - "tests/integration/**"
+      - "tests/patcher/**"
       - "scripts/test_runtime_integration.sh"
+      - "scripts/apply_upstream_patches.py"
+      - "scripts/prepare_upstream_tree.sh"
       - ".github/workflows/runtime-integration-validation.yml"
 
 jobs:
@@ -31,3 +37,6 @@ jobs:
 
       - name: Compile and run runtime integration self-tests
         run: sh scripts/test_runtime_integration.sh
+
+      - name: Validate upstream patcher
+        run: python3 tests/patcher/test_apply_upstream_patches.py
