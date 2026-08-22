@@ -13,5 +13,6 @@ find "$ROOT_DIR/engine/src/test/java" -name '*.java' -print >> "$SOURCES_FILE"
 
 javac -source 8 -target 8 -d "$OUT_DIR/classes" @"$SOURCES_FILE"
 java -cp "$OUT_DIR/classes" com.winlator.build.engine.EngineSelfTest
+java -cp "$OUT_DIR/classes" com.winlator.build.engine.RuntimeReadinessSelfTest
 
 rm -rf "$OUT_DIR"
