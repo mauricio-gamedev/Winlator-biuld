@@ -10,8 +10,8 @@ The CI validation overlay deliberately installs as a separate Android applicatio
 - app label: `Winlator Build Test`
 - upstream Java/JNI namespace remains `com.winlator`
 - FileProvider authority is derived from the validation application id
-- Java internal-storage paths use `BuildConfig.APPLICATION_ID`
-- native cache, Vortek socket, and Gladio X11 socket paths are patched to the validation application sandbox
+- Java internal-storage path is isolated under `/data/data/com.winlator.buildtest`
+- native cache, Vortek socket, and Gladio X11 socket paths use the same validation application sandbox
 
 This is a temporary validation identity, not the final product package decision.
 
