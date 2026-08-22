@@ -70,6 +70,12 @@ jobs:
             "ndk;24.0.8215888" \
             "cmake;3.22.1"
 
+      - name: Restore validation debug signing key
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: winlator-buildtest-debug-keystore-v1
+
       - name: Prepare Winlator Build overlay
         run: sh scripts/prepare_upstream_tree.sh
 
@@ -82,7 +88,7 @@ jobs:
       - name: Upload Android validation APK
         uses: actions/upload-artifact@v4
         with:
-          name: winlator-build-rootfs-validation-debug
+          name: winlator-build-runtime-validation-debug
           path: third_party/winlator-app/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 7
