@@ -91,7 +91,7 @@ public final class WinlatorRootFsInstaller {
                     "Unable to prepare RootFS parent directory", false);
         }
 
-        String recoveryError = recoverInterruptedTransaction(activeRoot, parent);
+        String recoveryError = recoverInterruptedTransaction(activity, activeRoot, parent);
         if (!recoveryError.isEmpty()) {
             RuntimeBaseInspection current = inspectSafely(inspector, activity);
             return result(Status.RECOVERY_FAILED, current, current, recoveryError, false);
@@ -248,7 +248,8 @@ public final class WinlatorRootFsInstaller {
         }
     }
 
-    private static String recoverInterruptedTransaction(File activeRoot, File parent) {
+    private static String recoverInterruptedTransaction(AppCompatActivity activity,
+            File activeRoot, File parent) {
         File journal = new File(parent, JOURNAL_FILE);
         if (!journal.isFile()) return "";
 
@@ -278,6 +279,12 @@ public final class WinlatorRootFsInstaller {
             if (!activeInspection.isLaunchReady()) {
                 return "Committed RootFS recovery found an invalid active RootFS; manual recovery is required";
             }
+
+            String metadataError = resetPostInstallState(activity);
+            if (!metadataError.isEmpty()) {
+                return "Unable to finish RootFS post-install recovery: " + metadataError;
+            }
+
             if (backup.exists() && !FileUtils.delete(backup)) {
                 return "Unable to finish old RootFS backup cleanup after interrupted commit";
             }
