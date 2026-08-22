@@ -1,0 +1,2 @@
+Winlator Build Test deterministic-signing update probe.
+Purpose: trigger a second APK build with the same fixed validation signing key and a higher versionCode so Android in-place update behavior can be verified.
