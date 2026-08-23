@@ -15,15 +15,18 @@ do
   found_archive=1
   echo "-- $(basename "$archive") --"
 
-  # List only Wine/loader-related paths so CI logs stay compact.
-  matches="$(tar --zstd -tf "$archive" 2>/dev/null | grep -E '(^|/)(opt/)?wine/|wine(64)?-preloader$|/bin/wine(64)?$|/bin/wineserver$' || true)"
+  # Keep only executable loader/server paths. Avoid broad /wine/ matches,
+  # which previously flooded the CI log with fonts/NLS and hid the paths
+  # we actually need to diagnose runtime startup.
+  matches="$(tar --zstd -tf "$archive" 2>/dev/null | grep -E '(^|/)(wine|wine64|wineserver|wine-preloader|wine64-preloader)$' || true)"
+
   if [ -n "$matches" ]; then
-    printf '%s\n' "$matches" | head -n 160
+    printf '%s\n' "$matches"
   else
-    echo "(no Wine loader paths in this archive)"
+    echo "(no Wine loader/server paths in this archive)"
   fi
 
-  if printf '%s\n' "$matches" | grep -Eq '(^|/)bin/wine$'; then
+  if printf '%s\n' "$matches" | grep -Eq '(^|/)wine$'; then
     found_wine=1
   fi
   if printf '%s\n' "$matches" | grep -Eq '(^|/)(wine-preloader|wine64-preloader)$'; then
@@ -37,12 +40,12 @@ if [ "$found_archive" -ne 1 ]; then
 fi
 
 if [ "$found_wine" -ne 1 ]; then
-  echo "ERROR: packaged /bin/wine was not found in inspected archives" >&2
+  echo "ERROR: packaged wine executable was not found in inspected archives" >&2
   exit 3
 fi
 
 if [ "$found_preloader" -eq 1 ]; then
-  echo "RESULT: a packaged Wine preloader exists"
+  echo "RESULT: a packaged Wine preloader exists; exact path(s) printed above"
 else
   echo "RESULT: NO packaged wine-preloader or wine64-preloader exists"
 fi
