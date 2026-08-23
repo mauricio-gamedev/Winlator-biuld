@@ -10,6 +10,7 @@ on:
       - "validation/**"
       - "scripts/test_runtime_integration.sh"
       - "scripts/validate_box64_baseline_asset.sh"
+      - "scripts/inspect_wine_loader_layout.sh"
       - "scripts/validate_minimal_container_pattern.sh"
       - "scripts/apply_upstream_patches.py"
       - "scripts/instrument_process_helper.py"
@@ -26,6 +27,7 @@ on:
       - "validation/**"
       - "scripts/test_runtime_integration.sh"
       - "scripts/validate_box64_baseline_asset.sh"
+      - "scripts/inspect_wine_loader_layout.sh"
       - "scripts/validate_minimal_container_pattern.sh"
       - "scripts/apply_upstream_patches.py"
       - "scripts/instrument_process_helper.py"
@@ -99,6 +101,9 @@ jobs:
 
       - name: Validate pinned Box64 package layout
         run: sh scripts/validate_box64_baseline_asset.sh
+
+      - name: Inspect packaged Wine loader layout
+        run: sh scripts/inspect_wine_loader_layout.sh
 
       - name: Validate minimal container pattern prerequisites
         run: sh scripts/validate_minimal_container_pattern.sh
