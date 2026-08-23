@@ -80,6 +80,21 @@ REPLACEMENTS = [
         "xenvironment stage",
     ),
     (
+        "        environment = new XEnvironment(this, rootFS);",
+        "        sessionGate(\"07a xenvironment-create-start\");\n        environment = new XEnvironment(this, rootFS);\n        sessionGate(\"07b xenvironment-created\");",
+        "xenvironment construction stage",
+    ),
+    (
+        "        guestProgramLauncherComponent.setEnvVars(envVars);\n        guestProgramLauncherComponent.setTerminationCallback((status) -> exit());\n        environment.addComponent(guestProgramLauncherComponent);",
+        "        guestProgramLauncherComponent.setEnvVars(envVars);\n        sessionGate(\"07c guest-configured command=\" + getWineStartCommand());\n        guestProgramLauncherComponent.setTerminationCallback((status) -> {\n            sessionGate(\"G1 guest-terminated status=\" + status + \" finishing=\" + isFinishing());\n            exit();\n        });\n        environment.addComponent(guestProgramLauncherComponent);\n        sessionGate(\"07d guest-component-added\");",
+        "guest launcher termination stage",
+    ),
+    (
+        "        environment.startEnvironmentComponents();\n\n        winHandler.start();",
+        "        sessionGate(\"07e environment-components-start\");\n        environment.startEnvironmentComponents();\n        sessionGate(\"07f environment-components-returned\");\n\n        sessionGate(\"07g winhandler-start\");\n        winHandler.start();\n        sessionGate(\"07h winhandler-started\");",
+        "environment component startup stage",
+    ),
+    (
         "                if (!flags[0] && window.isRenderable() && !window.getClassName().isEmpty()) {",
         "                sessionGate(\"08w map-window id=\" + window.id + \" renderable=\" + window.isRenderable() + \" class=\" + window.getClassName());\n                if (!flags[0] && window.isRenderable() && !window.getClassName().isEmpty()) {\n                    sessionGate(\"09 first-renderable-window class=\" + window.getClassName());",
         "window mapping stage",
