@@ -12,11 +12,14 @@ on:
       - "scripts/materialize_amod_box64_baseline.sh"
       - "scripts/patch_amod_box64_baseline.py"
       - "scripts/validate_box64_baseline_asset.sh"
+      - "scripts/validate_rootfs_box64_loader_pair.sh"
       - "scripts/inspect_wine_loader_layout.sh"
       - "scripts/validate_minimal_container_pattern.sh"
       - "scripts/apply_upstream_patches.py"
       - "scripts/instrument_process_helper.py"
       - "scripts/instrument_session_gate.py"
+      - "scripts/patch_session_gate_live_snapshot.py"
+      - "scripts/instrument_guest_preflight.py"
       - "scripts/patch_guest_launcher_bootstrap.py"
       - "scripts/prepare_upstream_tree.sh"
       - ".github/workflows/runtime-integration-validation.yml"
@@ -31,11 +34,14 @@ on:
       - "scripts/materialize_amod_box64_baseline.sh"
       - "scripts/patch_amod_box64_baseline.py"
       - "scripts/validate_box64_baseline_asset.sh"
+      - "scripts/validate_rootfs_box64_loader_pair.sh"
       - "scripts/inspect_wine_loader_layout.sh"
       - "scripts/validate_minimal_container_pattern.sh"
       - "scripts/apply_upstream_patches.py"
       - "scripts/instrument_process_helper.py"
       - "scripts/instrument_session_gate.py"
+      - "scripts/patch_session_gate_live_snapshot.py"
+      - "scripts/instrument_guest_preflight.py"
       - "scripts/patch_guest_launcher_bootstrap.py"
       - "scripts/prepare_upstream_tree.sh"
       - ".github/workflows/runtime-integration-validation.yml"
@@ -97,6 +103,12 @@ jobs:
             "ndk;24.0.8215888" \
             "cmake;3.22.1"
 
+      - name: Install runtime archive validation tools
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends zstd binutils
+
       - name: Materialize fixed validation signing key
         shell: bash
         run: |
@@ -109,7 +121,10 @@ jobs:
       - name: Materialize pinned AMOD Box64 0.4.1
         run: sh scripts/materialize_amod_box64_baseline.sh
 
-      - name: Validate AMOD Box64 direct-exec package
+      - name: Validate RootFS and Box64 ARM64 loader pair
+        run: sh scripts/validate_rootfs_box64_loader_pair.sh
+
+      - name: Validate AMOD Box64 package
         run: sh scripts/validate_box64_baseline_asset.sh
 
       - name: Inspect packaged Wine loader layout
