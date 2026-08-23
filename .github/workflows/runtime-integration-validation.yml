@@ -25,6 +25,7 @@ on:
       - "scripts/patch_guest_launcher_bootstrap.py"
       - "scripts/prepare_upstream_tree.sh"
       - ".github/workflows/runtime-integration-validation.yml"
+      - ".github/workflows/publish-apk-release.yml"
   pull_request:
     paths:
       - "engine/**"
@@ -49,6 +50,7 @@ on:
       - "scripts/patch_guest_launcher_bootstrap.py"
       - "scripts/prepare_upstream_tree.sh"
       - ".github/workflows/runtime-integration-validation.yml"
+      - ".github/workflows/publish-apk-release.yml"
 
 jobs:
   runtime-plan-transaction:
