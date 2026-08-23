@@ -15,7 +15,8 @@ public final class WinlatorSessionDiagnostics {
     private static final String FILE_NAME = "session-gate.log";
     private static final int MAX_DISPLAY_BYTES = 48 * 1024;
     private static final String SESSION_START_MARKER = "00 session-start";
-    private static final int RAW_LINES_BEFORE_TERMINATION = 11;
+    private static final String TAIL_START = "P1-tail-start";
+    private static final String TAIL_END = "P1-tail-end";
 
     private WinlatorSessionDiagnostics() {}
 
@@ -25,14 +26,14 @@ public final class WinlatorSessionDiagnostics {
         File file = new File(context.getFilesDir(), FILE_NAME);
         final boolean hasLog = file.isFile() && file.length() > 0;
         final String logText = hasLog
-                ? rawTerminationTail(latestSession(readTail(file)))
+                ? preservedTerminationTail(latestSession(readTail(file)))
                 : "No session-gate log has been recorded yet.\n\nRun a container once, then inspect this gate again.";
 
         ContentDialog dialog = new ContentDialog(context);
-        dialog.setTitle("Session gate — final guest output");
+        dialog.setTitle("Session gate — preserved failure tail");
         dialog.setMessage(logText);
         dialog.setBottomBarText(hasLog
-                ? "Latest session — raw lines immediately before guest termination"
+                ? "Latest session — rolling guest output captured at termination"
                 : "Persistent diagnostic — survives Activity exit/crash");
 
         View cancel = dialog.findViewById(R.id.BTCancel);
@@ -44,42 +45,42 @@ public final class WinlatorSessionDiagnostics {
 
     private static String latestSession(String text) {
         if (text == null || text.isEmpty()) return text;
-
         int marker = text.lastIndexOf(SESSION_START_MARKER);
         if (marker < 0) return text;
-
         int lineStart = text.lastIndexOf('\n', marker);
         if (lineStart < 0) lineStart = 0;
         else lineStart += 1;
-
         String latest = text.substring(lineStart).trim();
         return latest.isEmpty() ? text : latest;
     }
 
-    private static String rawTerminationTail(String text) {
+    private static String preservedTerminationTail(String text) {
         if (text == null || text.isEmpty()) return text;
-
         String[] lines = text.split("\\r?\\n");
+        int start = -1;
+        int end = -1;
         int termination = -1;
         for (int i = lines.length - 1; i >= 0; i--) {
-            if (lines[i].contains("G1 guest-terminated")) {
-                termination = i;
+            if (termination < 0 && lines[i].contains("G1 guest-terminated")) termination = i;
+            if (end < 0 && lines[i].contains(TAIL_END)) end = i;
+            if (end >= 0 && lines[i].contains(TAIL_START)) {
+                start = i;
                 break;
             }
         }
-
-        if (termination < 0) {
-            return "Guest termination has not been recorded in the latest session yet.";
+        if (start < 0 || end < start) {
+            return "Preserved guest failure tail has not been recorded yet.\nRun the container once with this build.";
         }
-
-        int start = Math.max(0, termination - RAW_LINES_BEFORE_TERMINATION);
         StringBuilder builder = new StringBuilder();
-        builder.append("[raw output before status]\n");
-        for (int i = start; i <= termination; i++) {
-            if (i > start) builder.append('\n');
-            builder.append(lines[i]);
+        builder.append("[last guest output captured before exit]\n");
+        for (int i = start + 1; i < end; i++) {
+            String line = lines[i];
+            int marker = line.indexOf("P1-tail ");
+            if (marker >= 0) line = line.substring(marker + "P1-tail ".length());
+            builder.append(line).append('\n');
         }
-        return builder.toString();
+        if (termination >= 0) builder.append(lines[termination]);
+        return builder.toString().trim();
     }
 
     private static String readTail(File file) {
@@ -99,11 +100,7 @@ public final class WinlatorSessionDiagnostics {
                 if (count < 0) break;
                 offset += count;
             }
-            String text = new String(data, 0, offset, StandardCharsets.UTF_8);
-            if (length > MAX_DISPLAY_BYTES) {
-                text = "[showing last " + MAX_DISPLAY_BYTES + " bytes]\n" + text;
-            }
-            return text;
+            return new String(data, 0, offset, StandardCharsets.UTF_8);
         } catch (Throwable error) {
             String message = error.getMessage();
             return "Unable to read session-gate log: " + error.getClass().getSimpleName()
