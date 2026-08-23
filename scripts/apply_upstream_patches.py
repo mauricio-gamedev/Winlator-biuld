@@ -56,7 +56,8 @@ def main() -> int:
             "import com.winlator.xenvironment.RootFSInstaller;",
             "import com.winlator.build.integration.WinlatorRootFsMaintenanceController;\n"
             "import com.winlator.build.integration.WinlatorBox64Diagnostics;\n"
-            "import com.winlator.build.integration.WinlatorWineDiagnostics;",
+            "import com.winlator.build.integration.WinlatorWineDiagnostics;\n"
+            "import com.winlator.build.integration.WinlatorSessionDiagnostics;",
             1,
             "SettingsFragment runtime maintenance imports",
         ),
@@ -64,7 +65,8 @@ def main() -> int:
             "GeneralComponents.initViews(GeneralComponents.Type.BOX64, view.findViewById(R.id.Box64Toolbox), sBox64Version, box64Version, DefaultVersion.BOX64);",
             "GeneralComponents.initViews(GeneralComponents.Type.BOX64, view.findViewById(R.id.Box64Toolbox), sBox64Version, box64Version, DefaultVersion.BOX64);\n"
             "        view.findViewById(R.id.BTInspectBox64Baseline).setOnClickListener((v) -> WinlatorBox64Diagnostics.show(context));\n"
-            "        view.findViewById(R.id.BTInspectWineBaseline).setOnClickListener((v) -> WinlatorWineDiagnostics.show(context));",
+            "        view.findViewById(R.id.BTInspectWineBaseline).setOnClickListener((v) -> WinlatorWineDiagnostics.show(context));\n"
+            "        view.findViewById(R.id.BTInspectSessionGate).setOnClickListener((v) -> WinlatorSessionDiagnostics.show(context));",
             1,
             "SettingsFragment runtime diagnostic hooks",
         ),
@@ -108,6 +110,14 @@ def main() -> int:
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="8dp"
                                 android:text="Inspect Wine baseline" />
+
+                            <Button
+                                style="@style/ButtonNeutral"
+                                android:id="@+id/BTInspectSessionGate"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="8dp"
+                                android:text="Inspect session gate" />
                         </LinearLayout>''',
             1,
             "Settings responsive runtime diagnostic buttons",
