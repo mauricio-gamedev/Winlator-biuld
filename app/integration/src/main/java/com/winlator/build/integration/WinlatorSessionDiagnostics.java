@@ -3,10 +3,8 @@ package com.winlator.build.integration;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
-import android.text.method.ScrollingMovementMethod;
 import android.view.View;
 import android.widget.Button;
-import android.widget.TextView;
 import android.widget.Toast;
 
 import com.winlator.R;
@@ -26,49 +24,61 @@ public final class WinlatorSessionDiagnostics {
         if (context == null) return;
 
         File file = new File(context.getFilesDir(), FILE_NAME);
-        ContentDialog dialog = new ContentDialog(context);
-        dialog.setTitle("Session gate");
-
-        final String logText;
         final boolean hasLog = file.isFile() && file.length() > 0;
-        if (!hasLog) {
-            logText = "No session-gate log has been recorded yet.\n\nRun a container once, then inspect this gate again.";
-            dialog.setBottomBarText("Persistent diagnostic — survives Activity exit/crash");
-        } else {
-            logText = readTail(file);
-            dialog.setBottomBarText("Persistent session trace: " + file.getAbsolutePath());
-        }
-        dialog.setMessage(logText);
+        final String logText = hasLog
+                ? readTail(file)
+                : "No session-gate log has been recorded yet.\n\nRun a container once, then inspect this gate again.";
 
-        TextView message = dialog.findViewById(R.id.TVMessage);
-        if (message != null) {
-            message.setMovementMethod(new ScrollingMovementMethod());
-            message.setVerticalScrollBarEnabled(true);
-            message.setScrollbarFadingEnabled(false);
-            message.setMaxLines(18);
-            message.setTextIsSelectable(true);
-        }
+        try {
+            ContentDialog dialog = new ContentDialog(context);
+            dialog.setTitle("Session gate");
+            dialog.setMessage(logText);
+            dialog.setBottomBarText(hasLog
+                    ? "Persistent session trace — use COPY LOG for the complete visible tail"
+                    : "Persistent diagnostic — survives Activity exit/crash");
 
-        Button cancel = dialog.findViewById(R.id.BTCancel);
-        if (cancel != null) {
+            Button cancel = dialog.findViewById(R.id.BTCancel);
+            if (cancel != null) {
+                if (hasLog) {
+                    cancel.setVisibility(View.VISIBLE);
+                    cancel.setText("COPY LOG");
+                    dialog.setOnCancelCallback(() -> copyLog(context, logText));
+                } else {
+                    cancel.setVisibility(View.GONE);
+                }
+            }
+
+            Button confirm = dialog.findViewById(R.id.BTConfirm);
+            if (confirm != null) confirm.setText("OK");
+            dialog.show();
+        } catch (Throwable error) {
             if (hasLog) {
-                cancel.setVisibility(View.VISIBLE);
-                cancel.setText("COPY LOG");
-                dialog.setOnCancelCallback(() -> {
-                    ClipboardManager clipboard = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
-                    if (clipboard != null) {
-                        clipboard.setPrimaryClip(ClipData.newPlainText("Winlator session gate", logText));
-                        Toast.makeText(context, "Session log copied", Toast.LENGTH_SHORT).show();
-                    }
-                });
+                copyLog(context, logText);
+                Toast.makeText(context,
+                        "Viewer failed; session log copied instead (" + error.getClass().getSimpleName() + ")",
+                        Toast.LENGTH_LONG).show();
             } else {
-                cancel.setVisibility(View.GONE);
+                Toast.makeText(context,
+                        "Session viewer failed: " + error.getClass().getSimpleName(),
+                        Toast.LENGTH_LONG).show();
             }
         }
+    }
 
-        Button confirm = dialog.findViewById(R.id.BTConfirm);
-        if (confirm != null) confirm.setText("OK");
-        dialog.show();
+    private static void copyLog(Context context, String logText) {
+        try {
+            ClipboardManager clipboard = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
+            if (clipboard != null) {
+                clipboard.setPrimaryClip(ClipData.newPlainText("Winlator session gate", logText));
+                Toast.makeText(context, "Session log copied", Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(context, "Clipboard unavailable", Toast.LENGTH_SHORT).show();
+            }
+        } catch (Throwable error) {
+            Toast.makeText(context,
+                    "Could not copy log: " + error.getClass().getSimpleName(),
+                    Toast.LENGTH_LONG).show();
+        }
     }
 
     private static String readTail(File file) {
