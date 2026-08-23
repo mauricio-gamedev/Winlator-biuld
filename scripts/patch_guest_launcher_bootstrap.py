@@ -7,12 +7,20 @@ from pathlib import Path
 OLD_COMMAND = '''        String command = rootDir+"/usr/local/bin/box64 "+guestExecutable;'''
 NEW_COMMAND = '''        File loader = new File(rootDir, "/lib/ld-linux-aarch64.so.1");
         File box64 = new File(rootDir, "/usr/local/bin/box64");
-        if (!loader.isFile() || !loader.canExecute() || !box64.isFile() || !box64.canExecute()) {
+        File wine = new File(rootDir, rootFS.getWinePath()+"/bin/wine");
+        File winePreloader = new File(rootDir, rootFS.getWinePath()+"/bin/wine-preloader");
+        if (!loader.isFile() || !loader.canExecute() || !box64.isFile() || !box64.canExecute()
+                || !wine.isFile() || !wine.canExecute() || !winePreloader.isFile() || !winePreloader.canExecute()) {
             if (terminationCallback != null) terminationCallback.call(-1);
             return -1;
         }
 
-        String command = loader.getPath()+" "+box64.getPath()+" "+guestExecutable;'''
+        String launchTarget = guestExecutable;
+        if (guestExecutable.equals("wine") || guestExecutable.startsWith("wine ")) {
+            String wineArgs = guestExecutable.length() > 4 ? guestExecutable.substring(4) : "";
+            launchTarget = winePreloader.getPath()+" "+wine.getPath()+wineArgs;
+        }
+        String command = loader.getPath()+" "+box64.getPath()+" "+launchTarget;'''
 
 OLD_ENV = '''        envVars.put("BOX64_LD_LIBRARY_PATH", rootDir+"/lib/x86_64-linux-gnu");'''
 NEW_ENV = '''        envVars.put("BOX64_LD_LIBRARY_PATH", rootDir+"/lib/x86_64-linux-gnu");
