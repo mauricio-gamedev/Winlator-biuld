@@ -22,6 +22,7 @@ python3 "$ROOT_DIR/scripts/apply_upstream_patches.py" "$UPSTREAM_DIR"
 python3 "$ROOT_DIR/scripts/patch_guest_launcher_bootstrap.py" "$GUEST_LAUNCHER"
 python3 "$ROOT_DIR/scripts/instrument_process_helper.py" "$PROCESS_HELPER"
 python3 "$ROOT_DIR/scripts/instrument_session_gate.py" "$SESSION_ACTIVITY"
+python3 "$ROOT_DIR/scripts/patch_session_gate_live_snapshot.py" "$SESSION_ACTIVITY"
 python3 "$ROOT_DIR/scripts/instrument_guest_preflight.py" "$SESSION_ACTIVITY"
 
 echo "Winlator Build overlay prepared in $UPSTREAM_DIR"
