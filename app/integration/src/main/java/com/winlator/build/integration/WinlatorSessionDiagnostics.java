@@ -10,11 +10,14 @@ import com.winlator.contentdialog.ContentDialog;
 import java.io.File;
 import java.io.FileInputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 
 public final class WinlatorSessionDiagnostics {
     private static final String FILE_NAME = "session-gate.log";
     private static final int MAX_DISPLAY_BYTES = 48 * 1024;
     private static final String SESSION_START_MARKER = "00 session-start";
+    private static final int MAX_FAILURE_LINES = 16;
 
     private WinlatorSessionDiagnostics() {}
 
@@ -24,14 +27,14 @@ public final class WinlatorSessionDiagnostics {
         File file = new File(context.getFilesDir(), FILE_NAME);
         final boolean hasLog = file.isFile() && file.length() > 0;
         final String logText = hasLog
-                ? criticalEvents(latestSession(readTail(file)))
+                ? failureTail(latestSession(readTail(file)))
                 : "No session-gate log has been recorded yet.\n\nRun a container once, then inspect this gate again.";
 
         ContentDialog dialog = new ContentDialog(context);
-        dialog.setTitle("Session gate — critical events");
+        dialog.setTitle("Session gate — Box64/Wine failure");
         dialog.setMessage(logText);
         dialog.setBottomBarText(hasLog
-                ? "Latest session only — filtered to guest startup/output/termination"
+                ? "Latest session — final Box64/Wine failure events only"
                 : "Persistent diagnostic — survives Activity exit/crash");
 
         View cancel = dialog.findViewById(R.id.BTCancel);
@@ -55,29 +58,40 @@ public final class WinlatorSessionDiagnostics {
         return latest.isEmpty() ? text : latest;
     }
 
-    private static String criticalEvents(String text) {
+    private static String failureTail(String text) {
         if (text == null || text.isEmpty()) return text;
 
         String[] lines = text.split("\\r?\\n");
-        StringBuilder builder = new StringBuilder();
+        List<String> relevant = new ArrayList<>();
         for (String line : lines) {
-            if (line.contains("07e environment-components-start")
-                    || line.contains("07f environment-components-returned")
-                    || line.contains("07g winhandler-start")
-                    || line.contains("07h winhandler-started")
-                    || line.contains("08 xenvironment-setup-returned")
-                    || line.contains("P1 guest-output")
+            String lower = line.toLowerCase();
+            boolean guestOutput = line.contains("P1 guest-output");
+            boolean box64OrWine = line.contains("[BOX64]")
+                    || lower.contains("wine:")
+                    || lower.contains("error")
+                    || lower.contains("failed")
+                    || lower.contains("missing")
+                    || lower.contains("cannot")
+                    || lower.contains("could not")
+                    || lower.contains("not found");
+
+            if ((guestOutput && box64OrWine)
                     || line.contains("G1 guest-terminated")
-                    || line.contains("CRASH ")
-                    || line.contains("L2 onPause")
-                    || line.contains("10 activity-destroy")) {
-                if (builder.length() > 0) builder.append('\n');
-                builder.append(line);
+                    || line.contains("CRASH ")) {
+                relevant.add(line);
             }
         }
 
-        if (builder.length() == 0) {
-            return "No critical events were found in the latest session.\n\n" + text;
+        if (relevant.isEmpty()) {
+            return "No Box64/Wine failure output was found in the latest session.";
+        }
+
+        int start = Math.max(0, relevant.size() - MAX_FAILURE_LINES);
+        StringBuilder builder = new StringBuilder();
+        if (start > 0) builder.append("[showing final ").append(MAX_FAILURE_LINES).append(" matching events]\n");
+        for (int i = start; i < relevant.size(); i++) {
+            if (builder.length() > 0) builder.append('\n');
+            builder.append(relevant.get(i));
         }
         return builder.toString();
     }
