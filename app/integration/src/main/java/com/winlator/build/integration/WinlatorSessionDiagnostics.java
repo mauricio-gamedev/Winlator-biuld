@@ -15,7 +15,6 @@ public final class WinlatorSessionDiagnostics {
     private static final String FILE_NAME = "session-gate.log";
     private static final int MAX_DISPLAY_BYTES = 48 * 1024;
     private static final String SESSION_START_MARKER = "00 session-start";
-    private static final int MAX_VISIBLE_LINES = 24;
 
     private WinlatorSessionDiagnostics() {}
 
@@ -25,14 +24,14 @@ public final class WinlatorSessionDiagnostics {
         File file = new File(context.getFilesDir(), FILE_NAME);
         final boolean hasLog = file.isFile() && file.length() > 0;
         final String logText = hasLog
-                ? compactTail(latestSession(readTail(file)))
+                ? criticalEvents(latestSession(readTail(file)))
                 : "No session-gate log has been recorded yet.\n\nRun a container once, then inspect this gate again.";
 
         ContentDialog dialog = new ContentDialog(context);
-        dialog.setTitle("Session gate — latest tail");
+        dialog.setTitle("Session gate — critical events");
         dialog.setMessage(logText);
         dialog.setBottomBarText(hasLog
-                ? "Latest session only — showing its final " + MAX_VISIBLE_LINES + " lines"
+                ? "Latest session only — filtered to guest startup/output/termination"
                 : "Persistent diagnostic — survives Activity exit/crash");
 
         View cancel = dialog.findViewById(R.id.BTCancel);
@@ -56,17 +55,29 @@ public final class WinlatorSessionDiagnostics {
         return latest.isEmpty() ? text : latest;
     }
 
-    private static String compactTail(String text) {
+    private static String criticalEvents(String text) {
         if (text == null || text.isEmpty()) return text;
-        String[] lines = text.split("\\r?\\n");
-        if (lines.length <= MAX_VISIBLE_LINES) return text;
 
-        int start = lines.length - MAX_VISIBLE_LINES;
+        String[] lines = text.split("\\r?\\n");
         StringBuilder builder = new StringBuilder();
-        builder.append("[showing final ").append(MAX_VISIBLE_LINES).append(" lines of latest session]\n");
-        for (int i = start; i < lines.length; i++) {
-            if (i > start) builder.append('\n');
-            builder.append(lines[i]);
+        for (String line : lines) {
+            if (line.contains("07e environment-components-start")
+                    || line.contains("07f environment-components-returned")
+                    || line.contains("07g winhandler-start")
+                    || line.contains("07h winhandler-started")
+                    || line.contains("08 xenvironment-setup-returned")
+                    || line.contains("P1 guest-output")
+                    || line.contains("G1 guest-terminated")
+                    || line.contains("CRASH ")
+                    || line.contains("L2 onPause")
+                    || line.contains("10 activity-destroy")) {
+                if (builder.length() > 0) builder.append('\n');
+                builder.append(line);
+            }
+        }
+
+        if (builder.length() == 0) {
+            return "No critical events were found in the latest session.\n\n" + text;
         }
         return builder.toString();
     }
