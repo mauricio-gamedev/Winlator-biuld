@@ -10,7 +10,9 @@ on:
       - "validation/**"
       - "scripts/test_runtime_integration.sh"
       - "scripts/materialize_amod_box64_baseline.sh"
+      - "scripts/materialize_amod_box64_fallback.sh"
       - "scripts/patch_amod_box64_baseline.py"
+      - "scripts/patch_box64_bootstrap_fallback.py"
       - "scripts/validate_box64_baseline_asset.sh"
       - "scripts/validate_rootfs_box64_loader_pair.sh"
       - "scripts/inspect_wine_loader_layout.sh"
@@ -32,7 +34,9 @@ on:
       - "validation/**"
       - "scripts/test_runtime_integration.sh"
       - "scripts/materialize_amod_box64_baseline.sh"
+      - "scripts/materialize_amod_box64_fallback.sh"
       - "scripts/patch_amod_box64_baseline.py"
+      - "scripts/patch_box64_bootstrap_fallback.py"
       - "scripts/validate_box64_baseline_asset.sh"
       - "scripts/validate_rootfs_box64_loader_pair.sh"
       - "scripts/inspect_wine_loader_layout.sh"
@@ -67,6 +71,9 @@ jobs:
 
       - name: Validate AMOD Box64 baseline patch
         run: python3 tests/patcher/test_amod_box64_baseline.py
+
+      - name: Validate bounded Box64 bootstrap fallback
+        run: python3 tests/patcher/test_box64_bootstrap_fallback.py
 
       - name: Validate ProcessHelper diagnostic instrumentation
         run: python3 tests/patcher/test_instrument_process_helper.py
@@ -118,10 +125,12 @@ jobs:
             -keystore "$RUNNER_TEMP/winlator-buildtest-signing/buildtest.keystore" \
             -storepass android -alias buildtest | grep -E 'SHA256:|Alias name:'
 
-      - name: Materialize pinned AMOD Box64 0.4.1
-        run: sh scripts/materialize_amod_box64_baseline.sh
+      - name: Materialize pinned AMOD Box64 primary and fallback
+        run: |
+          sh scripts/materialize_amod_box64_baseline.sh
+          sh scripts/materialize_amod_box64_fallback.sh
 
-      - name: Validate RootFS and Box64 ARM64 loader pair
+      - name: Validate RootFS and both Box64 ARM64 loader pairs
         run: sh scripts/validate_rootfs_box64_loader_pair.sh
 
       - name: Validate AMOD Box64 package
