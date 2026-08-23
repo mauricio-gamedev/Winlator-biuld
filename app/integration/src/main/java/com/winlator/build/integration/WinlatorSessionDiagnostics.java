@@ -1,8 +1,13 @@
 package com.winlator.build.integration;
 
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.Context;
+import android.text.method.ScrollingMovementMethod;
 import android.view.View;
 import android.widget.Button;
+import android.widget.TextView;
+import android.widget.Toast;
 
 import com.winlator.R;
 import com.winlator.contentdialog.ContentDialog;
@@ -24,16 +29,43 @@ public final class WinlatorSessionDiagnostics {
         ContentDialog dialog = new ContentDialog(context);
         dialog.setTitle("Session gate");
 
-        if (!file.isFile() || file.length() == 0) {
-            dialog.setMessage("No session-gate log has been recorded yet.\n\nRun a container once, then inspect this gate again.");
+        final String logText;
+        final boolean hasLog = file.isFile() && file.length() > 0;
+        if (!hasLog) {
+            logText = "No session-gate log has been recorded yet.\n\nRun a container once, then inspect this gate again.";
             dialog.setBottomBarText("Persistent diagnostic — survives Activity exit/crash");
         } else {
-            dialog.setMessage(readTail(file));
+            logText = readTail(file);
             dialog.setBottomBarText("Persistent session trace: " + file.getAbsolutePath());
         }
+        dialog.setMessage(logText);
 
-        View cancel = dialog.findViewById(R.id.BTCancel);
-        if (cancel != null) cancel.setVisibility(View.GONE);
+        TextView message = dialog.findViewById(R.id.TVMessage);
+        if (message != null) {
+            message.setMovementMethod(new ScrollingMovementMethod());
+            message.setVerticalScrollBarEnabled(true);
+            message.setScrollbarFadingEnabled(false);
+            message.setMaxLines(18);
+            message.setTextIsSelectable(true);
+        }
+
+        Button cancel = dialog.findViewById(R.id.BTCancel);
+        if (cancel != null) {
+            if (hasLog) {
+                cancel.setVisibility(View.VISIBLE);
+                cancel.setText("COPY LOG");
+                dialog.setOnCancelCallback(() -> {
+                    ClipboardManager clipboard = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
+                    if (clipboard != null) {
+                        clipboard.setPrimaryClip(ClipData.newPlainText("Winlator session gate", logText));
+                        Toast.makeText(context, "Session log copied", Toast.LENGTH_SHORT).show();
+                    }
+                });
+            } else {
+                cancel.setVisibility(View.GONE);
+            }
+        }
+
         Button confirm = dialog.findViewById(R.id.BTConfirm);
         if (confirm != null) confirm.setText("OK");
         dialog.show();
