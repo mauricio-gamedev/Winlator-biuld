@@ -4,16 +4,24 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-# AMOD winlator-glibc launches x86_64 Wine as:
-#   <rootfs>/usr/local/bin/box64 <absolute-wine-path> <wine-args>
-# It does not prepend the ARM64 glibc loader and it does not force
-# wine-preloader. The matching Box64 0.4.1 package is materialized separately
-# from the same AMOD branch so launcher and emulator stay a coherent pair.
-# Reference: afeimod/winlator-mod @ 4ad48931e9aaf77063b71f59f62378521cfa3d95
-# GlibcProgramLauncherComponent.java.
+# The Android kernel cannot directly execute our glibc-linked ARM64 Box64 when
+# its ELF interpreter (/lib/ld-linux-aarch64.so.1) is outside Android's host
+# filesystem namespace. Launch the packaged rootfs loader explicitly, then let
+# Box64 receive x86_64 Wine directly using the AMOD winlator-glibc Wine layout.
+#
+# Correct chain for the current rootless package:
+#   <rootfs>/lib/ld-linux-aarch64.so.1
+#       <rootfs>/usr/local/bin/box64
+#       <absolute-wine-path> <wine-args>
+#
+# This intentionally does NOT force wine-preloader into the x86_64 Wine
+# command line.
+# AMOD reference: afeimod/winlator-mod @
+# 4ad48931e9aaf77063b71f59f62378521cfa3d95, winlator-glibc.
 OLD_COMMAND = '''        String command = rootDir+"/usr/local/bin/box64 "+guestExecutable;'''
-NEW_COMMAND = '''        File box64 = new File(rootDir, "/usr/local/bin/box64");
-        if (!box64.isFile() || !box64.canExecute()) {
+NEW_COMMAND = '''        File loader = new File(rootDir, "/lib/ld-linux-aarch64.so.1");
+        File box64 = new File(rootDir, "/usr/local/bin/box64");
+        if (!loader.isFile() || !loader.canExecute() || !box64.isFile() || !box64.canExecute()) {
             if (terminationCallback != null) terminationCallback.call(-1);
             return -1;
         }
@@ -72,7 +80,7 @@ NEW_COMMAND = '''        File box64 = new File(rootDir, "/usr/local/bin/box64");
             launchTarget = wine.getPath()+(wineArgs.isEmpty() ? "" : " "+wineArgs);
         }
 
-        String command = box64.getPath()+" "+launchTarget;'''
+        String command = loader.getPath()+" "+box64.getPath()+" "+launchTarget;'''
 
 
 def replace_once(text: str, old: str, new: str, label: str) -> str:
@@ -96,7 +104,7 @@ def main() -> int:
 
     original = path.read_text(encoding="utf-8")
     try:
-        updated = replace_once(original, OLD_COMMAND, NEW_COMMAND, "AMOD Box64/Wine guest bootstrap")
+        updated = replace_once(original, OLD_COMMAND, NEW_COMMAND, "rootfs-loader Box64/Wine guest bootstrap")
     except RuntimeError as error:
         print(f"guest launcher bootstrap: {error}", file=sys.stderr)
         return 1
