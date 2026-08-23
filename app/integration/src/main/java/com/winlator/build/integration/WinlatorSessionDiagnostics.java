@@ -1,11 +1,8 @@
 package com.winlator.build.integration;
 
-import android.content.ClipData;
-import android.content.ClipboardManager;
 import android.content.Context;
 import android.view.View;
 import android.widget.Button;
-import android.widget.Toast;
 
 import com.winlator.R;
 import com.winlator.contentdialog.ContentDialog;
@@ -18,6 +15,7 @@ public final class WinlatorSessionDiagnostics {
     private static final String FILE_NAME = "session-gate.log";
     private static final int MAX_DISPLAY_BYTES = 48 * 1024;
     private static final String SESSION_START_MARKER = "00 session-start";
+    private static final int MAX_VISIBLE_LINES = 24;
 
     private WinlatorSessionDiagnostics() {}
 
@@ -27,43 +25,21 @@ public final class WinlatorSessionDiagnostics {
         File file = new File(context.getFilesDir(), FILE_NAME);
         final boolean hasLog = file.isFile() && file.length() > 0;
         final String logText = hasLog
-                ? latestSession(readTail(file))
+                ? compactTail(latestSession(readTail(file)))
                 : "No session-gate log has been recorded yet.\n\nRun a container once, then inspect this gate again.";
 
-        try {
-            ContentDialog dialog = new ContentDialog(context);
-            dialog.setTitle("Session gate — latest run");
-            dialog.setMessage(logText);
-            dialog.setBottomBarText(hasLog
-                    ? "Showing only the latest recorded session — use COPY LOG to copy it"
-                    : "Persistent diagnostic — survives Activity exit/crash");
+        ContentDialog dialog = new ContentDialog(context);
+        dialog.setTitle("Session gate — latest tail");
+        dialog.setMessage(logText);
+        dialog.setBottomBarText(hasLog
+                ? "Latest session only — showing its final " + MAX_VISIBLE_LINES + " lines"
+                : "Persistent diagnostic — survives Activity exit/crash");
 
-            Button cancel = dialog.findViewById(R.id.BTCancel);
-            if (cancel != null) {
-                if (hasLog) {
-                    cancel.setVisibility(View.VISIBLE);
-                    cancel.setText("COPY LOG");
-                    dialog.setOnCancelCallback(() -> copyLog(context, logText));
-                } else {
-                    cancel.setVisibility(View.GONE);
-                }
-            }
-
-            Button confirm = dialog.findViewById(R.id.BTConfirm);
-            if (confirm != null) confirm.setText("OK");
-            dialog.show();
-        } catch (Throwable error) {
-            if (hasLog) {
-                copyLog(context, logText);
-                Toast.makeText(context,
-                        "Viewer failed; latest session log copied instead (" + error.getClass().getSimpleName() + ")",
-                        Toast.LENGTH_LONG).show();
-            } else {
-                Toast.makeText(context,
-                        "Session viewer failed: " + error.getClass().getSimpleName(),
-                        Toast.LENGTH_LONG).show();
-            }
-        }
+        View cancel = dialog.findViewById(R.id.BTCancel);
+        if (cancel != null) cancel.setVisibility(View.GONE);
+        Button confirm = dialog.findViewById(R.id.BTConfirm);
+        if (confirm != null) confirm.setText("OK");
+        dialog.show();
     }
 
     private static String latestSession(String text) {
@@ -80,20 +56,19 @@ public final class WinlatorSessionDiagnostics {
         return latest.isEmpty() ? text : latest;
     }
 
-    private static void copyLog(Context context, String logText) {
-        try {
-            ClipboardManager clipboard = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
-            if (clipboard != null) {
-                clipboard.setPrimaryClip(ClipData.newPlainText("Winlator latest session gate", logText));
-                Toast.makeText(context, "Latest session log copied", Toast.LENGTH_SHORT).show();
-            } else {
-                Toast.makeText(context, "Clipboard unavailable", Toast.LENGTH_SHORT).show();
-            }
-        } catch (Throwable error) {
-            Toast.makeText(context,
-                    "Could not copy log: " + error.getClass().getSimpleName(),
-                    Toast.LENGTH_LONG).show();
+    private static String compactTail(String text) {
+        if (text == null || text.isEmpty()) return text;
+        String[] lines = text.split("\\r?\\n");
+        if (lines.length <= MAX_VISIBLE_LINES) return text;
+
+        int start = lines.length - MAX_VISIBLE_LINES;
+        StringBuilder builder = new StringBuilder();
+        builder.append("[showing final ").append(MAX_VISIBLE_LINES).append(" lines of latest session]\n");
+        for (int i = start; i < lines.length; i++) {
+            if (i > start) builder.append('\n');
+            builder.append(lines[i]);
         }
+        return builder.toString();
     }
 
     private static String readTail(File file) {
