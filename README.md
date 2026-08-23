@@ -89,9 +89,9 @@ Development releases are not stable releases. Until Core 0.1 reaches its functio
 
 ## Ownership, copyright, and audit trail
 
-Project-specific architecture, original integration code, validation infrastructure, custom patches, documentation, and other original modifications in this repository are maintained by **@astromg01**.
+Project-specific architecture, original integration code, validation infrastructure, custom patches, documentation, and other original modifications in this repository are maintained by **Mauricio.dev (@mauricio-gamedev)**.
 
-**Copyright © 2026 @astromg01. All rights reserved for original project-specific material, except where another license or copyright notice applies.**
+**Copyright © 2026 Mauricio.dev (@mauricio-gamedev). All rights reserved for original project-specific material, except where another license or copyright notice applies.**
 
 This repository also incorporates and depends on third-party/open-source software. Winlator, Wine, Box64, Android/Gradle components, graphics libraries, and any other upstream projects retain their respective authors, copyrights, trademarks, and licenses. Project ownership claims do **not** supersede third-party licenses.
 
