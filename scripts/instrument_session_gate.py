@@ -36,9 +36,7 @@ REPLACEMENTS = [
         "                sessionGate(\"CRASH thread=\" + thread.getName() + \" type=\" + error.getClass().getName()\n"
         "                        + \" message=\" + String.valueOf(error.getMessage()) + \"\\n\" + buffer.toString());\n"
         "            } catch (Throwable ignored) {}\n"
-        "            if (sessionGatePreviousHandler != null) {\n"
-        "                sessionGatePreviousHandler.uncaughtException(thread, error);\n"
-        "            }\n"
+        "            if (sessionGatePreviousHandler != null) sessionGatePreviousHandler.uncaughtException(thread, error);\n"
         "        });\n"
         "    }\n\n"
         "    private void restoreSessionGateCrashHandler() {\n"
@@ -67,23 +65,38 @@ REPLACEMENTS = [
         "container activation stage",
     ),
     (
+        "        setupUI();",
+        "        sessionGate(\"02a setup-ui-start\");\n        setupUI();\n        sessionGate(\"02b setup-ui-returned\");",
+        "ui setup stage",
+    ),
+    (
         "                setupWineSystemFiles();\n                extractGraphicsDriverFiles();\n                changeWineAudioDriver();",
         "                sessionGate(\"03 wine-preparation-start\");\n                setupWineSystemFiles();\n                sessionGate(\"04 wine-system-files-ready\");\n                extractGraphicsDriverFiles();\n                sessionGate(\"05 graphics-driver-files-ready\");\n                changeWineAudioDriver();\n                sessionGate(\"06 wine-audio-ready\");",
         "wine preparation stages",
     ),
     (
         "            setupXEnvironment();",
-        "            sessionGate(\"07 xenvironment-setup-start\");\n            setupXEnvironment();\n            sessionGate(\"08 xenvironment-setup-returned\");",
+        "            sessionGate(\"07 xenvironment-setup-start\");\n            setupXEnvironment();\n            sessionGate(\"08 xenvironment-setup-returned environment-null=\" + (environment == null));",
         "xenvironment stage",
     ),
     (
         "                if (!flags[0] && window.isRenderable() && !window.getClassName().isEmpty()) {",
-        "                if (!flags[0] && window.isRenderable() && !window.getClassName().isEmpty()) {\n                    sessionGate(\"09 first-renderable-window class=\" + window.getClassName());",
-        "first window stage",
+        "                sessionGate(\"08w map-window id=\" + window.id + \" renderable=\" + window.isRenderable() + \" class=\" + window.getClassName());\n                if (!flags[0] && window.isRenderable() && !window.getClassName().isEmpty()) {\n                    sessionGate(\"09 first-renderable-window class=\" + window.getClassName());",
+        "window mapping stage",
+    ),
+    (
+        "    public void onResume() {\n        super.onResume();",
+        "    public void onResume() {\n        super.onResume();\n        sessionGate(\"L1 onResume environment-null=\" + (environment == null));",
+        "resume lifecycle stage",
+    ),
+    (
+        "    public void onPause() {\n        ForegroundService.onPauseSession(this);",
+        "    public void onPause() {\n        sessionGate(\"L2 onPause finishing=\" + isFinishing() + \" changing-config=\" + isChangingConfigurations() + \" environment-null=\" + (environment == null));\n        ForegroundService.onPauseSession(this);",
+        "pause lifecycle stage",
     ),
     (
         "    protected void onDestroy() {\n        winHandler.stop();",
-        "    protected void onDestroy() {\n        sessionGate(\"10 activity-destroy\");\n        restoreSessionGateCrashHandler();\n        winHandler.stop();",
+        "    protected void onDestroy() {\n        sessionGate(\"10 activity-destroy finishing=\" + isFinishing() + \" changing-config=\" + isChangingConfigurations());\n        restoreSessionGateCrashHandler();\n        winHandler.stop();",
         "destroy stage",
     ),
 ]
