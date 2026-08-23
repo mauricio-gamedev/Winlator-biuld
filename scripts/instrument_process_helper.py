@@ -4,21 +4,34 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-ORIGINAL = '''            java.lang.Process process = processBuilder.start();
+# AMOD winlator-glibc uses Runtime.exec(command, envp, workingDir) instead of
+# ProcessBuilder.start() for the guest process. On the Android 16 validation
+# device our persisted trace reached ProcessBuilder.start() but never reached
+# process-created, so keep the upstream public API while replacing only the
+# process creation mechanism with the proven AMOD path.
+ORIGINAL = '''            ProcessBuilder processBuilder = (new ProcessBuilder(splitCommand(command))).directory(workingDir);
+            if (debugCallbacks.isEmpty()) processBuilder.redirectOutput(new File("/dev/null")).redirectErrorStream(true);
+
+            Map<String, String> environment = processBuilder.environment();
+            for (String name : envVars) environment.put(name, envVars.get(name));
+
+            java.lang.Process process = processBuilder.start();
             Field pidField = process.getClass().getDeclaredField("pid");
             pidField.setAccessible(true);
             pid = pidField.getInt(process);
             pidField.setAccessible(false);
 '''
 
-INSTRUMENTED = '''            emitValidationExecTrace("exec:before-start command=" + command);
-            emitValidationExecTrace("exec:env WINELOADERNOEXEC=" + String.valueOf(environment.get("WINELOADERNOEXEC"))
-                    + " BOX64_PATH=" + String.valueOf(environment.get("BOX64_PATH"))
-                    + " BOX64_LD_LIBRARY_PATH=" + String.valueOf(environment.get("BOX64_LD_LIBRARY_PATH"))
-                    + " WINEPREFIX=" + String.valueOf(environment.get("WINEPREFIX"))
-                    + " PATH=" + String.valueOf(environment.get("PATH"))
-                    + " LD_LIBRARY_PATH=" + String.valueOf(environment.get("LD_LIBRARY_PATH")));
-            java.lang.Process process = processBuilder.start();
+INSTRUMENTED = '''            String[] processEnv = envVars != null ? envVars.toStringArray() : null;
+            emitValidationExecTrace("exec:before-start command=" + command);
+            emitValidationExecTrace("exec:mode=runtime-exec");
+            emitValidationExecTrace("exec:env WINELOADERNOEXEC=" + String.valueOf(envVars != null ? envVars.get("WINELOADERNOEXEC") : null)
+                    + " BOX64_PATH=" + String.valueOf(envVars != null ? envVars.get("BOX64_PATH") : null)
+                    + " BOX64_LD_LIBRARY_PATH=" + String.valueOf(envVars != null ? envVars.get("BOX64_LD_LIBRARY_PATH") : null)
+                    + " WINEPREFIX=" + String.valueOf(envVars != null ? envVars.get("WINEPREFIX") : null)
+                    + " PATH=" + String.valueOf(envVars != null ? envVars.get("PATH") : null)
+                    + " LD_LIBRARY_PATH=" + String.valueOf(envVars != null ? envVars.get("LD_LIBRARY_PATH") : null));
+            java.lang.Process process = Runtime.getRuntime().exec(splitCommand(command), processEnv, workingDir);
             emitValidationExecTrace("exec:process-created class=" + process.getClass().getName());
             emitValidationExecTrace("exec:pid-reflection-start");
             Field pidField = process.getClass().getDeclaredField("pid");
@@ -68,7 +81,7 @@ def main() -> int:
         raise RuntimeError(f"ProcessHelper.java is missing: {path}")
 
     original = path.read_text(encoding="utf-8")
-    updated = replace_once(original, ORIGINAL, INSTRUMENTED, "ProcessHelper exec checkpoints")
+    updated = replace_once(original, ORIGINAL, INSTRUMENTED, "AMOD Runtime.exec guest process path")
     updated = replace_once(updated, ORIGINAL_CATCH, INSTRUMENTED_CATCH, "ProcessHelper exec exception trace")
 
     if updated != original:
