@@ -3,16 +3,17 @@ set -eu
 
 ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 ROOTFS="$ROOT_DIR/third_party/winlator-app/app/src/main/assets/rootfs.tzst"
-BOX64="$ROOT_DIR/third_party/winlator-app/app/src/main/assets/box64/box64-0.4.1.tzst"
+BOX64_PRIMARY="$ROOT_DIR/third_party/winlator-app/app/src/main/assets/box64/box64-0.4.1.tzst"
+BOX64_FALLBACK="$ROOT_DIR/third_party/winlator-app/app/src/main/assets/box64/box64-0.3.8.tzst"
 
-for f in "$ROOTFS" "$BOX64"; do
+for f in "$ROOTFS" "$BOX64_PRIMARY" "$BOX64_FALLBACK"; do
     if [ ! -f "$f" ]; then
         echo "missing packaged runtime asset: $f" >&2
         exit 1
     fi
 done
 
-for tool in tar readelf grep head; do
+for tool in tar readelf grep head awk sed; do
     if ! command -v "$tool" >/dev/null 2>&1; then
         echo "required validation tool is missing: $tool" >&2
         exit 1
@@ -22,10 +23,8 @@ done
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 ROOT_LIST="$TMP/rootfs.list"
-BOX_LIST="$TMP/box64.list"
 
 tar --zstd -tf "$ROOTFS" > "$ROOT_LIST"
-tar --zstd -tf "$BOX64" > "$BOX_LIST"
 
 LOADER_ENTRY=$(grep -E '(^|/)(lib|usr/lib)/ld-linux-aarch64\.so\.1$' "$ROOT_LIST" | head -n 1 || true)
 if [ -z "$LOADER_ENTRY" ]; then
@@ -39,24 +38,19 @@ if [ -z "$LIBC_ENTRY" ]; then
     exit 1
 fi
 
-BOX64_ENTRY=$(grep -E '(^|/)usr/local/bin/box64$' "$BOX_LIST" | head -n 1 || true)
-if [ -z "$BOX64_ENTRY" ]; then
-    echo "AMOD Box64 package does not contain usr/local/bin/box64" >&2
-    exit 1
-fi
-
-mkdir -p "$TMP/rootfs" "$TMP/box64"
+mkdir -p "$TMP/rootfs"
 tar --zstd -xf "$ROOTFS" -C "$TMP/rootfs" "$LOADER_ENTRY" "$LIBC_ENTRY"
-tar --zstd -xf "$BOX64" -C "$TMP/box64" "$BOX64_ENTRY"
-
 LOADER_FILE="$TMP/rootfs/$LOADER_ENTRY"
 LIBC_FILE="$TMP/rootfs/$LIBC_ENTRY"
-BOX64_FILE="$TMP/box64/$BOX64_ENTRY"
 
-for spec in "loader:$LOADER_FILE" "libc:$LIBC_FILE" "box64:$BOX64_FILE"; do
+machine_of() {
+    readelf -h "$1" | awk -F: '/Machine:/{gsub(/^[ \t]+/, "", $2); print $2; exit}'
+}
+
+for spec in "loader:$LOADER_FILE" "libc:$LIBC_FILE"; do
     name=${spec%%:*}
     file=${spec#*:}
-    machine=$(readelf -h "$file" | awk -F: '/Machine:/{gsub(/^[ \t]+/, "", $2); print $2; exit}')
+    machine=$(machine_of "$file")
     echo "$name machine=$machine path=$file"
     echo "$machine" | grep -qi 'AArch64' || {
         echo "$name is not AArch64" >&2
@@ -64,22 +58,47 @@ for spec in "loader:$LOADER_FILE" "libc:$LIBC_FILE" "box64:$BOX64_FILE"; do
     }
 done
 
-INTERP=$(readelf -l "$BOX64_FILE" | sed -n 's/.*Requesting program interpreter: \(.*\)]/\1/p' | head -n 1)
-if [ -z "$INTERP" ]; then
-    echo "Box64 ELF interpreter was not found" >&2
-    exit 1
-fi
-
-echo "box64 interpreter=$INTERP"
-case "$INTERP" in
-    */ld-linux-aarch64.so.1) ;;
-    *)
-        echo "Box64 interpreter does not match packaged ARM64 glibc loader" >&2
+validate_box64() {
+    label=$1
+    archive=$2
+    outdir="$TMP/$label"
+    list="$TMP/$label.list"
+    mkdir -p "$outdir"
+    tar --zstd -tf "$archive" > "$list"
+    entry=$(grep -E '(^|/)usr/local/bin/box64$' "$list" | head -n 1 || true)
+    if [ -z "$entry" ]; then
+        echo "$label package does not contain usr/local/bin/box64" >&2
         exit 1
-        ;;
-esac
+    fi
 
-echo "== Box64 NEEDED libraries =="
-readelf -d "$BOX64_FILE" | grep 'NEEDED' || true
+    tar --zstd -xf "$archive" -C "$outdir" "$entry"
+    file="$outdir/$entry"
+    machine=$(machine_of "$file")
+    echo "$label machine=$machine path=$file"
+    echo "$machine" | grep -qi 'AArch64' || {
+        echo "$label is not AArch64" >&2
+        exit 1
+    }
 
-echo "RESULT: RootFS ARM64 loader/libc and AMOD Box64 form a coherent ELF pair"
+    interp=$(readelf -l "$file" | sed -n 's/.*Requesting program interpreter: \(.*\)]/\1/p' | head -n 1)
+    if [ -z "$interp" ]; then
+        echo "$label ELF interpreter was not found" >&2
+        exit 1
+    fi
+    echo "$label interpreter=$interp"
+    case "$interp" in
+        */ld-linux-aarch64.so.1) ;;
+        *)
+            echo "$label interpreter does not match packaged ARM64 glibc loader" >&2
+            exit 1
+            ;;
+    esac
+
+    echo "== $label NEEDED libraries =="
+    readelf -d "$file" | grep 'NEEDED' || true
+}
+
+validate_box64 box64-primary "$BOX64_PRIMARY"
+validate_box64 box64-fallback "$BOX64_FALLBACK"
+
+echo "RESULT: RootFS loader/libc and both pinned AMOD Box64 binaries form coherent AArch64 ELF pairs"
