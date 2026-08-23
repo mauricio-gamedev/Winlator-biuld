@@ -20,8 +20,9 @@ The project has moved beyond the initial repository skeleton and is now validati
 - Minimal containers can be created and activated.
 - `XEnvironment`, guest launcher, graphics preparation, audio preparation, and WinHandler initialization are reached.
 - Persistent Session Gate diagnostics survive the guest session closing.
-- The current blocking issue has been isolated to the Wine loader handoff/re-execution path under Box64 on rootless Android.
-- A Box64 `wine-preloader` bootstrap path is currently being validated to remove that handoff failure.
+- The current blocking issue has been isolated to the Wine/Box64 loader handoff under the rootless Android runtime.
+- The previous forced `ld-linux-aarch64 -> Box64 -> wine-preloader -> Wine` experiment has been retired after comparison with AMOD.
+- The current validation path follows the AMOD `winlator-glibc` design for x86_64 Wine: Box64 receives an explicitly resolved Wine executable plus the Wine runtime library layout, without forcing the ARM64 loader or `wine-preloader` into the x86_64 command line.
 
 ### Immediate milestone
 
