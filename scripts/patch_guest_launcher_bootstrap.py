@@ -4,23 +4,16 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-# AMOD's glibc launcher resolves x86_64 Wine and its runtime libraries
-# explicitly and hands Wine to Box64 without forcing wine-preloader.
-# Our pinned upstream Box64 package is a glibc ARM64 executable. On Android,
-# executing that Box64 path directly can fail with ENOENT when its PT_INTERP
-# is not visible in Android's host namespace. Therefore this patch keeps the
-# AMOD-style Box64 -> Wine handoff, but starts Box64 through the matching
-# ARM64 dynamic loader inside the RootFS.
-# Reference: afeimod/winlator-mod, branch winlator-glibc,
+# AMOD winlator-glibc launches x86_64 Wine as:
+#   <rootfs>/usr/local/bin/box64 <absolute-wine-path> <wine-args>
+# It does not prepend the ARM64 glibc loader and it does not force
+# wine-preloader. The matching Box64 0.4.1 package is materialized separately
+# from the same AMOD branch so launcher and emulator stay a coherent pair.
+# Reference: afeimod/winlator-mod @ 4ad48931e9aaf77063b71f59f62378521cfa3d95
 # GlibcProgramLauncherComponent.java.
 OLD_COMMAND = '''        String command = rootDir+"/usr/local/bin/box64 "+guestExecutable;'''
 NEW_COMMAND = '''        File box64 = new File(rootDir, "/usr/local/bin/box64");
-        File loader = new File(rootDir, "/lib/ld-linux-aarch64.so.1");
-        if (!loader.isFile()) loader = new File(rootDir, "/lib64/ld-linux-aarch64.so.1");
-        if (!loader.isFile()) loader = new File(rootDir, "/usr/lib/ld-linux-aarch64.so.1");
-        if (!loader.isFile()) loader = new File(rootDir, "/usr/lib64/ld-linux-aarch64.so.1");
-
-        if (!box64.isFile() || !box64.canExecute() || !loader.isFile() || !loader.canExecute()) {
+        if (!box64.isFile() || !box64.canExecute()) {
             if (terminationCallback != null) terminationCallback.call(-1);
             return -1;
         }
@@ -60,25 +53,26 @@ NEW_COMMAND = '''        File box64 = new File(rootDir, "/usr/local/bin/box64");
             File wineDllDir = new File(wineLibDir, "wine");
             if (!wineDllDir.isDirectory()) wineDllDir = new File(wineLib64Dir, "wine");
 
-            String box64LdLibraryPath = rootDir+"/lib/x86_64-linux-gnu:"
-                    +rootDir+"/usr/lib/x86_64-linux-gnu";
-            if (wineLibDir.isDirectory()) box64LdLibraryPath = wineLibDir.getPath()+":"+box64LdLibraryPath;
-            if (wineLib64Dir.isDirectory()) box64LdLibraryPath = wineLib64Dir.getPath()+":"+box64LdLibraryPath;
+            String ldLibraryPath = rootDir+"/usr/lib";
+            if (wineLibDir.isDirectory()) ldLibraryPath = wineLibDir.getPath()+":"+ldLibraryPath;
+            if (wineLib64Dir.isDirectory()) ldLibraryPath = wineLib64Dir.getPath()+":"+ldLibraryPath;
             if (wineDllDir.isDirectory()) {
                 envVars.put("WINEDLLPATH", wineDllDir.getPath());
                 File unix64Dir = new File(wineDllDir, "x86_64-unix");
-                if (unix64Dir.isDirectory()) box64LdLibraryPath = unix64Dir.getPath()+":"+box64LdLibraryPath;
+                if (unix64Dir.isDirectory()) ldLibraryPath = unix64Dir.getPath()+":"+ldLibraryPath;
             }
 
-            // Keep LD_LIBRARY_PATH native for the ARM64 loader/Box64 process.
-            // x86_64 guest libraries belong in BOX64_LD_LIBRARY_PATH.
-            envVars.put("BOX64_LD_LIBRARY_PATH", box64LdLibraryPath);
+            envVars.put("WINE_HOST_XDG_CURRENT_DESKTOP", "1");
+            envVars.put("LD_LIBRARY_PATH", ldLibraryPath);
+            envVars.put("BOX64_LD_LIBRARY_PATH",
+                    rootDir+"/usr/lib/x86_64-linux-gnu:"+rootDir+"/lib/x86_64-linux-gnu:"+ldLibraryPath);
             envVars.put("BOX64_MMAP32", "1");
+            envVars.put("BOX64_X11GLX", "1");
 
             launchTarget = wine.getPath()+(wineArgs.isEmpty() ? "" : " "+wineArgs);
         }
 
-        String command = loader.getPath()+" "+box64.getPath()+" "+launchTarget;'''
+        String command = box64.getPath()+" "+launchTarget;'''
 
 
 def replace_once(text: str, old: str, new: str, label: str) -> str:
@@ -102,7 +96,7 @@ def main() -> int:
 
     original = path.read_text(encoding="utf-8")
     try:
-        updated = replace_once(original, OLD_COMMAND, NEW_COMMAND, "RootFS-loader Box64 guest bootstrap")
+        updated = replace_once(original, OLD_COMMAND, NEW_COMMAND, "AMOD Box64/Wine guest bootstrap")
     except RuntimeError as error:
         print(f"guest launcher bootstrap: {error}", file=sys.stderr)
         return 1
