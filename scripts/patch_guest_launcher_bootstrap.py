@@ -15,28 +15,8 @@ NEW_COMMAND = '''        File loader = new File(rootDir, "/lib/ld-linux-aarch64.
         String launchTarget = guestExecutable;
         if (guestExecutable.equals("wine") || guestExecutable.startsWith("wine ")) {
             File wine = new File(rootDir, rootFS.getWinePath()+"/bin/wine");
-            if (!wine.isFile() || !wine.canExecute()) {
-                if (terminationCallback != null) terminationCallback.call(-1);
-                return -1;
-            }
-
-            File winePreloader = new File(rootDir, rootFS.getWinePath()+"/bin/wine-preloader");
-            if (!winePreloader.isFile() || !winePreloader.canExecute()) {
-                File wine64Preloader = new File(rootDir, rootFS.getWinePath()+"/bin/wine64-preloader");
-                if (wine64Preloader.isFile() && wine64Preloader.canExecute()) {
-                    winePreloader = wine64Preloader;
-                }
-                else {
-                    // Some Android Wine packages intentionally omit the native preloader binary.
-                    // Box64 only needs a valid x86_64 target whose argv path is named
-                    // wine-preloader in order to enter its built-in preloader-skip path.
-                    // A symlink avoids copying or modifying the packaged Wine executable.
-                    winePreloader = new File(rootDir, "/tmp/wine-preloader");
-                    FileUtils.symlink(wine, winePreloader);
-                }
-            }
-
-            if (!winePreloader.isFile() || !winePreloader.canExecute()) {
+            File winePreloader = new File(rootDir, rootFS.getWinePath()+"/lib/wine/x86_64-unix/wine-preloader");
+            if (!wine.isFile() || !wine.canExecute() || !winePreloader.isFile() || !winePreloader.canExecute()) {
                 if (terminationCallback != null) terminationCallback.call(-1);
                 return -1;
             }
