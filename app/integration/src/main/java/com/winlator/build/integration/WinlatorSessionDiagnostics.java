@@ -15,6 +15,7 @@ public final class WinlatorSessionDiagnostics {
     private static final String FILE_NAME = "session-gate.log";
     private static final int MAX_DISPLAY_BYTES = 48 * 1024;
     private static final String SESSION_START_MARKER = "00 session-start";
+    private static final String EXEC_COMMAND_MARKER = "execbefore-start command=";
     private static final String TAIL_START = "P1-tail-start";
     private static final String TAIL_END = "P1-tail-end";
 
@@ -25,15 +26,20 @@ public final class WinlatorSessionDiagnostics {
 
         File file = new File(context.getFilesDir(), FILE_NAME);
         final boolean hasLog = file.isFile() && file.length() > 0;
-        final String logText = hasLog
-                ? preservedTerminationTail(latestSession(readTail(file)))
-                : "No session-gate log has been recorded yet.\n\nRun a container once, then inspect this gate again.";
+        final String logText;
+        if (hasLog) {
+            String latest = latestSession(readTail(file));
+            logText = launchCommand(latest) + "\n\n" + preservedTerminationTail(latest);
+        }
+        else {
+            logText = "No session-gate log has been recorded yet.\n\nRun a container once, then inspect this gate again.";
+        }
 
         ContentDialog dialog = new ContentDialog(context);
-        dialog.setTitle("Session gate — preserved failure tail");
+        dialog.setTitle("Session gate — launch + failure");
         dialog.setMessage(logText);
         dialog.setBottomBarText(hasLog
-                ? "Latest session — rolling guest output captured at termination"
+                ? "Latest session — actual launch command and final guest output"
                 : "Persistent diagnostic — survives Activity exit/crash");
 
         View cancel = dialog.findViewById(R.id.BTCancel);
@@ -54,6 +60,18 @@ public final class WinlatorSessionDiagnostics {
         return latest.isEmpty() ? text : latest;
     }
 
+    private static String launchCommand(String text) {
+        if (text == null || text.isEmpty()) return "[launch command]\n(not captured)";
+        String[] lines = text.split("\\r?\\n");
+        for (String line : lines) {
+            int marker = line.indexOf(EXEC_COMMAND_MARKER);
+            if (marker >= 0) {
+                return "[launch command]\n" + line.substring(marker + EXEC_COMMAND_MARKER.length()).trim();
+            }
+        }
+        return "[launch command]\n(not captured)";
+    }
+
     private static String preservedTerminationTail(String text) {
         if (text == null || text.isEmpty()) return text;
         String[] lines = text.split("\\r?\\n");
@@ -69,7 +87,7 @@ public final class WinlatorSessionDiagnostics {
             }
         }
         if (start < 0 || end < start) {
-            return "Preserved guest failure tail has not been recorded yet.\nRun the container once with this build.";
+            return "[last guest output captured before exit]\n(not captured)";
         }
         StringBuilder builder = new StringBuilder();
         builder.append("[last guest output captured before exit]\n");
