@@ -37,7 +37,11 @@ def main() -> int:
         patched = path.read_text(encoding="utf-8")
         assert 'new File(rootDir, "/lib/ld-linux-aarch64.so.1")' in patched
         assert 'new File(rootDir, "/usr/local/bin/box64")' in patched
-        assert 'loader.getPath()+" "+box64.getPath()+" "+guestExecutable' in patched
+        assert 'rootFS.getWinePath()+"/bin/wine-preloader"' in patched
+        assert 'rootFS.getWinePath()+"/bin/wine"' in patched
+        assert 'guestExecutable.equals("wine") || guestExecutable.startsWith("wine ")' in patched
+        assert 'launchTarget = winePreloader.getPath()+" "+wine.getPath()+wineArgs' in patched
+        assert 'loader.getPath()+" "+box64.getPath()+" "+launchTarget' in patched
         assert 'terminationCallback.call(-1)' in patched
         assert 'envVars.put("BOX64_PATH", rootDir+rootFS.getWinePath()+"/bin:"+rootDir+"/usr/local/bin:"+rootDir+"/usr/bin")' in patched
         assert 'envVars.put("BOX64_LOG", "1")' in patched
