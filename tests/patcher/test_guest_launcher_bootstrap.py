@@ -38,14 +38,13 @@ def main() -> int:
         assert 'new File(rootDir, "/lib/ld-linux-aarch64.so.1")' in patched
         assert 'new File(rootDir, "/usr/local/bin/box64")' in patched
         assert 'rootFS.getWinePath()+"/bin/wine"' in patched
-        assert 'rootFS.getWinePath()+"/bin/wine-preloader"' in patched
-        assert 'rootFS.getWinePath()+"/bin/wine64-preloader"' in patched
-        assert 'new File(rootDir, "/tmp/wine-preloader")' in patched
-        assert 'FileUtils.symlink(wine, winePreloader)' in patched
+        assert 'rootFS.getWinePath()+"/lib/wine/x86_64-unix/wine-preloader"' in patched
+        assert '/tmp/wine-preloader' not in patched
+        assert 'FileUtils.symlink' not in patched
         assert 'guestExecutable.equals("wine") || guestExecutable.startsWith("wine ")' in patched
         assert 'launchTarget = winePreloader.getPath()+" "+wine.getPath()+wineArgs' in patched
         assert 'loader.getPath()+" "+box64.getPath()+" "+launchTarget' in patched
-        assert patched.count('terminationCallback.call(-1)') >= 3
+        assert patched.count('terminationCallback.call(-1)') >= 2
         assert 'envVars.put("BOX64_PATH", rootDir+rootFS.getWinePath()+"/bin:"+rootDir+"/usr/local/bin:"+rootDir+"/usr/bin")' in patched
         assert 'envVars.put("BOX64_LOG", "1")' in patched
         assert 'WINELOADERNOEXEC' not in patched
