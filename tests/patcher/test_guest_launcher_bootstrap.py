@@ -30,23 +30,20 @@ def run(path: Path):
 
 
 def main() -> int:
-    with tempfile.TemporaryDirectory(prefix="guest-launcher-rootfs-loader-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="guest-launcher-amod-pair-") as tmp:
         path = Path(tmp) / "GuestProgramLauncherComponent.java"
         path.write_text(SOURCE, encoding="utf-8")
         first = run(path)
         assert first.returncode == 0, first.stderr
         patched = path.read_text(encoding="utf-8")
 
-        # The pinned Box64 binary is launched through the RootFS ARM64 loader,
-        # while Wine itself stays behind Box64 without wine-preloader.
+        # x86_64 Wine must be handed directly to the matching AMOD Box64.
         assert 'new File(rootDir, "/usr/local/bin/box64")' in patched
-        assert 'new File(rootDir, "/lib/ld-linux-aarch64.so.1")' in patched
-        assert 'new File(rootDir, "/lib64/ld-linux-aarch64.so.1")' in patched
-        assert 'new File(rootDir, "/usr/lib/ld-linux-aarch64.so.1")' in patched
-        assert 'new File(rootDir, "/usr/lib64/ld-linux-aarch64.so.1")' in patched
+        assert 'ld-linux-aarch64.so.1' not in patched
         assert 'wine-preloader' not in patched
+        assert 'String command = box64.getPath()+" "+launchTarget' in patched
 
-        # AMOD-style x86_64 Wine resolution is retained.
+        # Wine executable and runtime layout are resolved explicitly.
         assert 'trimmedGuestExecutable.equals("wine")' in patched
         assert 'trimmedGuestExecutable.equals("wine64")' in patched
         assert 'String winePath = rootFS.getWinePath()' in patched
@@ -54,16 +51,13 @@ def main() -> int:
         assert 'new File(wineBinDir, "wine")' in patched
         assert 'new File(wineDllDir, "x86_64-unix")' in patched
         assert 'envVars.put("WINEDLLPATH", wineDllDir.getPath())' in patched
+        assert 'envVars.put("WINE_HOST_XDG_CURRENT_DESKTOP", "1")' in patched
+        assert 'envVars.put("LD_LIBRARY_PATH", ldLibraryPath)' in patched
+        assert 'rootDir+"/usr/lib/x86_64-linux-gnu:"+rootDir+"/lib/x86_64-linux-gnu:"+ldLibraryPath' in patched
         assert 'envVars.put("BOX64_MMAP32", "1")' in patched
-
-        # Keep native LD_LIBRARY_PATH untouched and isolate guest libraries in
-        # BOX64_LD_LIBRARY_PATH for the emulated x86_64 side.
-        assert 'String box64LdLibraryPath = rootDir+"/lib/x86_64-linux-gnu:"' in patched
-        assert 'envVars.put("BOX64_LD_LIBRARY_PATH", box64LdLibraryPath)' in patched
-        assert 'envVars.put("LD_LIBRARY_PATH", ldLibraryPath)' not in patched
+        assert 'envVars.put("BOX64_X11GLX", "1")' in patched
 
         assert 'launchTarget = wine.getPath()+(wineArgs.isEmpty() ? "" : " "+wineArgs)' in patched
-        assert 'String command = loader.getPath()+" "+box64.getPath()+" "+launchTarget' in patched
         assert patched.count('terminationCallback.call(-1)') >= 2
 
         second = run(path)
@@ -75,7 +69,7 @@ def main() -> int:
         path.write_text(SOURCE.replace('/usr/local/bin/box64 ', '/usr/local/bin/box64-custom '), encoding="utf-8")
         result = run(path)
         assert result.returncode != 0
-        assert "RootFS-loader Box64 guest bootstrap" in result.stderr
+        assert "AMOD Box64/Wine guest bootstrap" in result.stderr
 
     print("test_guest_launcher_bootstrap: all tests passed")
     return 0
