@@ -17,7 +17,6 @@ class Callback<T> { void call(T value) {} }
 class EnvVars implements Iterable<String> {
     public java.util.Iterator<String> iterator() { return java.util.Collections.<String>emptyList().iterator(); }
     String get(String name) { return ""; }
-    String[] toStringArray() { return new String[0]; }
 }
 class ProcessHelper {
     static java.util.ArrayList<Callback<String>> debugCallbacks = new java.util.ArrayList<>();
@@ -49,22 +48,22 @@ def run(path: Path) -> subprocess.CompletedProcess[str]:
 
 
 def main() -> int:
-    with tempfile.TemporaryDirectory(prefix="process-helper-amod-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="process-helper-upstream-") as tmp:
         path = Path(tmp) / "ProcessHelper.java"
         path.write_text(FIXTURE, encoding="utf-8")
         first = run(path)
         assert first.returncode == 0, first.stderr
         patched = path.read_text(encoding="utf-8")
-        assert 'Runtime.getRuntime().exec(splitCommand(command), processEnv, workingDir)' in patched
-        assert 'String[] processEnv = envVars != null ? envVars.toStringArray() : null' in patched
-        assert 'ProcessBuilder processBuilder' not in patched
+        assert 'ProcessBuilder processBuilder' in patched
+        assert 'processBuilder.start()' in patched
+        assert 'Runtime.getRuntime().exec' not in patched
         assert patched.count("exec:before-start") == 1
-        assert patched.count("exec:mode=runtime-exec") == 1
+        assert patched.count("exec:mode=process-builder") == 1
         assert patched.count("exec:env WINELOADERNOEXEC=") == 1
-        assert 'envVars.get("BOX64_LD_LIBRARY_PATH")' in patched
-        assert 'envVars.get("WINEPREFIX")' in patched
-        assert 'envVars.get("PATH")' in patched
-        assert 'envVars.get("LD_LIBRARY_PATH")' in patched
+        assert 'environment.get("BOX64_LD_LIBRARY_PATH")' in patched
+        assert 'environment.get("WINEPREFIX")' in patched
+        assert 'environment.get("PATH")' in patched
+        assert 'environment.get("LD_LIBRARY_PATH")' in patched
         assert patched.count("exec:process-created") == 1
         assert patched.count("exec:pid-reflection-start") == 1
         assert patched.count("exec:pid-obtained") == 1
@@ -76,7 +75,7 @@ def main() -> int:
 
     with tempfile.TemporaryDirectory(prefix="process-helper-drift-") as tmp:
         path = Path(tmp) / "ProcessHelper.java"
-        path.write_text(FIXTURE.replace('redirectErrorStream(true)', 'redirectErrorStream(false)'), encoding="utf-8")
+        path.write_text(FIXTURE.replace('getDeclaredField("pid")', 'getDeclaredField("processId")'), encoding="utf-8")
         drift = run(path)
         assert drift.returncode != 0
         assert "expected exactly one upstream occurrence" in drift.stderr
