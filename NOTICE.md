@@ -15,6 +15,7 @@ This notice establishes authorship and an audit trail for original material. It 
 This repository depends on and/or integrates third-party open-source projects, including but not limited to:
 
 - **Winlator** — primary Android upstream, pinned as a Git submodule.
+- **Winlator MOD / AMOD (`afeimod/winlator-mod`)** — selectively used as a compatibility/runtime behavior reference. The Core 0.1 Wine/Box64 bootstrap work specifically references the `winlator-glibc` launcher design; that branch carries an MIT `LICENSE` notice identifying BrunoSX as copyright holder.
 - **Wine** — Windows compatibility layer/runtime.
 - **Box64 / Box86** — x86/x86_64 userspace emulation components.
 - Android, Gradle, Android SDK/NDK, graphics, audio, and runtime libraries used by the upstream project or this integration.
