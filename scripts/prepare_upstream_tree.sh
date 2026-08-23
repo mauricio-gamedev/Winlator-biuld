@@ -15,8 +15,8 @@ if [ ! -f "$UPSTREAM_DIR/app/build.gradle" ]; then
     exit 1
 fi
 
-# Keep the launcher and Box64 package from the same proven AMOD glibc baseline.
 sh "$ROOT_DIR/scripts/materialize_amod_box64_baseline.sh"
+sh "$ROOT_DIR/scripts/materialize_amod_box64_fallback.sh"
 
 rm -rf "$JAVA_ROOT/engine" "$JAVA_ROOT/integration"
 mkdir -p "$JAVA_ROOT/engine" "$JAVA_ROOT/integration"
@@ -25,6 +25,7 @@ cp -R "$ROOT_DIR/app/integration/src/main/java/com/winlator/build/integration/."
 python3 "$ROOT_DIR/scripts/apply_upstream_patches.py" "$UPSTREAM_DIR"
 python3 "$ROOT_DIR/scripts/patch_amod_box64_baseline.py" "$DEFAULT_VERSION" "$GUEST_LAUNCHER"
 python3 "$ROOT_DIR/scripts/patch_guest_launcher_bootstrap.py" "$GUEST_LAUNCHER"
+python3 "$ROOT_DIR/scripts/patch_box64_bootstrap_fallback.py" "$GUEST_LAUNCHER"
 python3 "$ROOT_DIR/scripts/instrument_process_helper.py" "$PROCESS_HELPER"
 python3 "$ROOT_DIR/scripts/instrument_session_gate.py" "$SESSION_ACTIVITY"
 python3 "$ROOT_DIR/scripts/patch_session_gate_live_snapshot.py" "$SESSION_ACTIVITY"
