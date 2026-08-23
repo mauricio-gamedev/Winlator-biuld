@@ -9,13 +9,52 @@ TAG = "WinlatorSessionGate"
 REPLACEMENTS = [
     (
         "import android.view.KeyEvent;",
-        "import android.view.KeyEvent;\nimport android.util.Log;",
-        "Log import",
+        "import android.view.KeyEvent;\nimport android.util.Log;\n\nimport java.io.File;\nimport java.io.FileWriter;\nimport java.io.PrintWriter;\nimport java.io.StringWriter;",
+        "diagnostic imports",
     ),
     (
         "public class XServerDisplayActivity extends AppCompatActivity implements NavigationView.OnNavigationItemSelectedListener {",
-        "public class XServerDisplayActivity extends AppCompatActivity implements NavigationView.OnNavigationItemSelectedListener {\n    private static final String SESSION_GATE_TAG = \"WinlatorSessionGate\";\n\n    private void sessionGate(String stage) {\n        Log.i(SESSION_GATE_TAG, stage);\n    }",
-        "session gate helper",
+        "public class XServerDisplayActivity extends AppCompatActivity implements NavigationView.OnNavigationItemSelectedListener {\n"
+        "    private static final String SESSION_GATE_TAG = \"WinlatorSessionGate\";\n"
+        "    private static final String SESSION_GATE_FILE = \"session-gate.log\";\n"
+        "    private Thread.UncaughtExceptionHandler sessionGatePreviousHandler;\n\n"
+        "    private synchronized void sessionGate(String stage) {\n"
+        "        String line = System.currentTimeMillis() + \" [\" + Thread.currentThread().getName() + \"] \" + stage;\n"
+        "        Log.i(SESSION_GATE_TAG, line);\n"
+        "        try (FileWriter writer = new FileWriter(new File(getFilesDir(), SESSION_GATE_FILE), true)) {\n"
+        "            writer.write(line);\n"
+        "            writer.write('\\n');\n"
+        "            writer.flush();\n"
+        "        } catch (Throwable ignored) {}\n"
+        "    }\n\n"
+        "    private void installSessionGateCrashHandler() {\n"
+        "        sessionGatePreviousHandler = Thread.getDefaultUncaughtExceptionHandler();\n"
+        "        Thread.setDefaultUncaughtExceptionHandler((thread, error) -> {\n"
+        "            try {\n"
+        "                StringWriter buffer = new StringWriter();\n"
+        "                error.printStackTrace(new PrintWriter(buffer));\n"
+        "                sessionGate(\"CRASH thread=\" + thread.getName() + \" type=\" + error.getClass().getName()\n"
+        "                        + \" message=\" + String.valueOf(error.getMessage()) + \"\\n\" + buffer.toString());\n"
+        "            } catch (Throwable ignored) {}\n"
+        "            if (sessionGatePreviousHandler != null) {\n"
+        "                sessionGatePreviousHandler.uncaughtException(thread, error);\n"
+        "            }\n"
+        "        });\n"
+        "    }\n\n"
+        "    private void restoreSessionGateCrashHandler() {\n"
+        "        if (sessionGatePreviousHandler != null) {\n"
+        "            Thread.setDefaultUncaughtExceptionHandler(sessionGatePreviousHandler);\n"
+        "            sessionGatePreviousHandler = null;\n"
+        "        }\n"
+        "    }",
+        "session gate persistent helper",
+    ),
+    (
+        "        AppUtils.setActivityTheme(this);\n        super.onCreate(savedInstanceState);",
+        "        AppUtils.setActivityTheme(this);\n        super.onCreate(savedInstanceState);\n"
+        "        installSessionGateCrashHandler();\n"
+        "        sessionGate(\"00 session-start intent-container-id=\" + getIntent().getIntExtra(\"container_id\", 0));",
+        "session start/crash handler",
     ),
     (
         "        rootFS = RootFS.find(this);",
@@ -44,7 +83,7 @@ REPLACEMENTS = [
     ),
     (
         "    protected void onDestroy() {\n        winHandler.stop();",
-        "    protected void onDestroy() {\n        sessionGate(\"10 activity-destroy\");\n        winHandler.stop();",
+        "    protected void onDestroy() {\n        sessionGate(\"10 activity-destroy\");\n        restoreSessionGateCrashHandler();\n        winHandler.stop();",
         "destroy stage",
     ),
 ]
