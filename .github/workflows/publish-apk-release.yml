@@ -91,8 +91,10 @@ jobs:
           mkdir -p "$RUNNER_TEMP/winlator-buildtest-signing"
           base64 -d validation/buildtest-debug.keystore.b64 > "$RUNNER_TEMP/winlator-buildtest-signing/buildtest.keystore"
 
-      - name: Materialize pinned AMOD Box64 0.4.1
-        run: sh scripts/materialize_amod_box64_baseline.sh
+      - name: Materialize pinned AMOD Box64 primary and fallback
+        run: |
+          sh scripts/materialize_amod_box64_baseline.sh
+          sh scripts/materialize_amod_box64_fallback.sh
 
       - name: Run full integration, loader, and patcher gates
         shell: bash
@@ -100,6 +102,7 @@ jobs:
           sh scripts/test_runtime_integration.sh
           python3 tests/patcher/test_apply_upstream_patches.py
           python3 tests/patcher/test_amod_box64_baseline.py
+          python3 tests/patcher/test_box64_bootstrap_fallback.py
           python3 tests/patcher/test_instrument_process_helper.py
           python3 tests/patcher/test_guest_launcher_bootstrap.py
           sh scripts/validate_rootfs_box64_loader_pair.sh
@@ -187,8 +190,9 @@ jobs:
 
           ### Status
           - Core 0.1 runtime development
-          - AMOD winlator-glibc Box64 0.4.1 baseline
-          - RootFS ARM64 loader/libc and Box64 ELF pair validated before build
+          - AMOD winlator-glibc Box64 0.4.1 primary baseline
+          - Bounded one-shot AMOD Box64 0.3.8 fallback for early non-zero bootstrap exits
+          - RootFS ARM64 loader/libc and both Box64 ELF pairs validated before build
           - ARM64 loader library path isolated from x86_64 Wine library path
           - FONTCONFIG and Android SysV SHM runtime support aligned with AMOD when present
           - Experimental build; not a stable release unless explicitly marked otherwise
