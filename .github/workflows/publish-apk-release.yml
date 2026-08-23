@@ -79,6 +79,12 @@ jobs:
             "ndk;24.0.8215888" \
             "cmake;3.22.1"
 
+      - name: Install runtime archive validation tools
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends zstd binutils
+
       - name: Materialize validation signing key
         shell: bash
         run: |
@@ -88,7 +94,7 @@ jobs:
       - name: Materialize pinned AMOD Box64 0.4.1
         run: sh scripts/materialize_amod_box64_baseline.sh
 
-      - name: Run integration and patcher tests
+      - name: Run full integration, loader, and patcher gates
         shell: bash
         run: |
           sh scripts/test_runtime_integration.sh
@@ -96,6 +102,7 @@ jobs:
           python3 tests/patcher/test_amod_box64_baseline.py
           python3 tests/patcher/test_instrument_process_helper.py
           python3 tests/patcher/test_guest_launcher_bootstrap.py
+          sh scripts/validate_rootfs_box64_loader_pair.sh
           sh scripts/validate_box64_baseline_asset.sh
           sh scripts/inspect_wine_loader_layout.sh
           sh scripts/validate_minimal_container_pattern.sh
@@ -180,7 +187,10 @@ jobs:
 
           ### Status
           - Core 0.1 runtime development
-          - AMOD winlator-glibc Box64 0.4.1 baseline pinned for the x86_64 Wine bootstrap gate
+          - AMOD winlator-glibc Box64 0.4.1 baseline
+          - RootFS ARM64 loader/libc and Box64 ELF pair validated before build
+          - ARM64 loader library path isolated from x86_64 Wine library path
+          - FONTCONFIG and Android SysV SHM runtime support aligned with AMOD when present
           - Experimental build; not a stable release unless explicitly marked otherwise
           - See README.md and NOTICE.md for project status, ownership, attribution, and third-party licensing notes
 
