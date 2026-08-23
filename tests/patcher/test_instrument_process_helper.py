@@ -60,10 +60,23 @@ def main() -> int:
         assert patched.count("exec:before-start") == 1
         assert patched.count("exec:mode=process-builder") == 1
         assert patched.count("exec:env WINELOADERNOEXEC=") == 1
-        assert 'environment.get("BOX64_LD_LIBRARY_PATH")' in patched
-        assert 'environment.get("WINEPREFIX")' in patched
-        assert 'environment.get("PATH")' in patched
-        assert 'environment.get("LD_LIBRARY_PATH")' in patched
+
+        for name in [
+            "WINLATOR_BOX64_BASELINE",
+            "BOX64_PATH",
+            "BOX64_LD_LIBRARY_PATH",
+            "BOX64_MMAP32",
+            "BOX64_X11GLX",
+            "BOX64_LOG",
+            "WINEPREFIX",
+            "PATH",
+            "LD_LIBRARY_PATH",
+            "LD_PRELOAD",
+            "FONTCONFIG_PATH",
+            "ANDROID_SYSVSHM_SERVER",
+        ]:
+            assert f'environment.get("{name}")' in patched
+
         assert patched.count("exec:process-created") == 1
         assert patched.count("exec:pid-reflection-start") == 1
         assert patched.count("exec:pid-obtained") == 1
