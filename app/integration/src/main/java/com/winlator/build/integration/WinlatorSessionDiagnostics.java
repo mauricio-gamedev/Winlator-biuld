@@ -15,7 +15,7 @@ public final class WinlatorSessionDiagnostics {
     private static final String FILE_NAME = "session-gate.log";
     private static final int MAX_DISPLAY_BYTES = 48 * 1024;
     private static final String SESSION_START_MARKER = "00 session-start";
-    private static final String EXEC_COMMAND_MARKER = "execbefore-start command=";
+    private static final String EXEC_COMMAND_MARKER = "exec:before-start command=";
     private static final String TAIL_START = "P1-tail-start";
     private static final String TAIL_END = "P1-tail-end";
 
@@ -29,17 +29,17 @@ public final class WinlatorSessionDiagnostics {
         final String logText;
         if (hasLog) {
             String latest = latestSession(readTail(file));
-            logText = launchCommand(latest) + "\n\n" + preservedTerminationTail(latest);
+            logText = launchCommand(latest) + "\n\n" + sessionState(latest) + "\n\n" + preservedTerminationTail(latest);
         }
         else {
             logText = "No session-gate log has been recorded yet.\n\nRun a container once, then inspect this gate again.";
         }
 
         ContentDialog dialog = new ContentDialog(context);
-        dialog.setTitle("Session gate — launch + failure");
+        dialog.setTitle("Session gate — launch + state + tail");
         dialog.setMessage(logText);
         dialog.setBottomBarText(hasLog
-                ? "Latest session — actual launch command and final guest output"
+                ? "Latest session — persisted launch snapshot and guest output"
                 : "Persistent diagnostic — survives Activity exit/crash");
 
         View cancel = dialog.findViewById(R.id.BTCancel);
@@ -70,6 +70,21 @@ public final class WinlatorSessionDiagnostics {
             }
         }
         return "[launch command]\n(not captured)";
+    }
+
+    private static String sessionState(String text) {
+        if (text == null || text.isEmpty()) return "[session state]\n(not captured)";
+        boolean firstWindow = text.contains("09 first-renderable-window");
+        boolean terminated = text.contains("G1 guest-terminated");
+        boolean destroyed = text.contains("10 activity-destroy");
+        boolean processCreated = text.contains("exec:process-created");
+        boolean pidObtained = text.contains("exec:pid-obtained");
+        return "[session state]\n"
+                + "process-created=" + processCreated + "\n"
+                + "pid-obtained=" + pidObtained + "\n"
+                + "first-renderable-window=" + firstWindow + "\n"
+                + "guest-terminated=" + terminated + "\n"
+                + "activity-destroyed=" + destroyed;
     }
 
     private static String preservedTerminationTail(String text) {
