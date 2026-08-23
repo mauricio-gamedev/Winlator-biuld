@@ -17,6 +17,7 @@ class ProcessHelper {
         int pid = -1;
         try {
             Object envVars = null;
+            java.util.Map<String, String> environment = new java.util.HashMap<>();
             ProcessBuilder processBuilder = new ProcessBuilder(command);
             java.lang.Process process = processBuilder.start();
             Field pidField = process.getClass().getDeclaredField("pid");
@@ -43,6 +44,12 @@ def main() -> int:
         assert first.returncode == 0, first.stderr
         patched = path.read_text(encoding="utf-8")
         assert patched.count("exec:before-start") == 1
+        assert patched.count("exec:env WINELOADERNOEXEC=") == 1
+        assert 'environment.get("BOX64_PATH")' in patched
+        assert 'environment.get("BOX64_LD_LIBRARY_PATH")' in patched
+        assert 'environment.get("WINEPREFIX")' in patched
+        assert 'environment.get("PATH")' in patched
+        assert 'environment.get("LD_LIBRARY_PATH")' in patched
         assert patched.count("exec:process-created") == 1
         assert patched.count("exec:pid-reflection-start") == 1
         assert patched.count("exec:pid-obtained") == 1
