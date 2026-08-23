@@ -4,24 +4,47 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-# The Android kernel cannot directly execute our glibc-linked ARM64 Box64 when
-# its ELF interpreter (/lib/ld-linux-aarch64.so.1) is outside Android's host
-# filesystem namespace. Launch the packaged rootfs loader explicitly, then let
-# Box64 receive x86_64 Wine directly using the AMOD winlator-glibc Wine layout.
+# Rootless Android cannot resolve the glibc interpreter requested by the ARM64
+# Box64 ELF in Android's host namespace. Launch the RootFS loader explicitly,
+# but give that loader an ARM64-only library search path. Keep the x86_64 Wine
+# library layout isolated in BOX64_LD_LIBRARY_PATH so the host loader never
+# tries to consume guest ELF libraries.
 #
-# Correct chain for the current rootless package:
-#   <rootfs>/lib/ld-linux-aarch64.so.1
-#       <rootfs>/usr/local/bin/box64
-#       <absolute-wine-path> <wine-args>
-#
-# This intentionally does NOT force wine-preloader into the x86_64 Wine
-# command line.
 # AMOD reference: afeimod/winlator-mod @
 # 4ad48931e9aaf77063b71f59f62378521cfa3d95, winlator-glibc.
+#
+# Effective chain:
+#   <rootfs>/lib/ld-linux-aarch64.so.1
+#     --inhibit-cache
+#     --library-path <rootfs ARM64 library dirs>
+#     <rootfs>/usr/local/bin/box64
+#     <absolute Wine x86_64 executable> <wine args>
 OLD_COMMAND = '''        String command = rootDir+"/usr/local/bin/box64 "+guestExecutable;'''
 NEW_COMMAND = '''        File loader = new File(rootDir, "/lib/ld-linux-aarch64.so.1");
+        if (!loader.isFile()) loader = new File(rootDir, "/usr/lib/ld-linux-aarch64.so.1");
         File box64 = new File(rootDir, "/usr/local/bin/box64");
         if (!loader.isFile() || !loader.canExecute() || !box64.isFile() || !box64.canExecute()) {
+            if (terminationCallback != null) terminationCallback.call(-1);
+            return -1;
+        }
+
+        String[] nativeLibraryCandidates = new String[] {
+                "/lib/aarch64-linux-gnu",
+                "/usr/lib/aarch64-linux-gnu",
+                "/lib64",
+                "/usr/lib64",
+                "/lib",
+                "/usr/lib"
+        };
+        StringBuilder nativeLibraryPathBuilder = new StringBuilder();
+        for (String candidate : nativeLibraryCandidates) {
+            File directory = new File(rootDir, candidate);
+            if (!directory.isDirectory()) continue;
+            if (nativeLibraryPathBuilder.length() > 0) nativeLibraryPathBuilder.append(':');
+            nativeLibraryPathBuilder.append(directory.getPath());
+        }
+        String nativeLibraryPath = nativeLibraryPathBuilder.toString();
+        if (nativeLibraryPath.isEmpty()) {
             if (terminationCallback != null) terminationCallback.call(-1);
             return -1;
         }
@@ -76,11 +99,22 @@ NEW_COMMAND = '''        File loader = new File(rootDir, "/lib/ld-linux-aarch64.
                     rootDir+"/usr/lib/x86_64-linux-gnu:"+rootDir+"/lib/x86_64-linux-gnu:"+ldLibraryPath);
             envVars.put("BOX64_MMAP32", "1");
             envVars.put("BOX64_X11GLX", "1");
+            envVars.put("BOX64_LOG", "1");
+
+            File fontConfigDir = new File(rootDir, "/usr/etc/fonts");
+            if (!fontConfigDir.isDirectory()) fontConfigDir = new File(rootDir, "/etc/fonts");
+            if (fontConfigDir.isDirectory()) envVars.put("FONTCONFIG_PATH", fontConfigDir.getPath());
+
+            File sysvShm = new File(rootDir, "/usr/lib/libandroid-sysvshm.so");
+            if (!sysvShm.isFile()) sysvShm = new File(rootDir, "/lib/libandroid-sysvshm.so");
+            if (sysvShm.isFile()) envVars.put("LD_PRELOAD", sysvShm.getPath());
 
             launchTarget = wine.getPath()+(wineArgs.isEmpty() ? "" : " "+wineArgs);
         }
 
-        String command = loader.getPath()+" "+box64.getPath()+" "+launchTarget;'''
+        String command = loader.getPath()
+                +" --inhibit-cache --library-path "+nativeLibraryPath
+                +" "+box64.getPath()+" "+launchTarget;'''
 
 
 def replace_once(text: str, old: str, new: str, label: str) -> str:
