@@ -17,10 +17,7 @@ NEW_COMMAND = '''        File loader = new File(rootDir, "/lib/ld-linux-aarch64.
 OLD_ENV = '''        envVars.put("BOX64_LD_LIBRARY_PATH", rootDir+"/lib/x86_64-linux-gnu");'''
 NEW_ENV = '''        envVars.put("BOX64_LD_LIBRARY_PATH", rootDir+"/lib/x86_64-linux-gnu");
         envVars.put("BOX64_PATH", rootDir+rootFS.getWinePath()+"/bin:"+rootDir+"/usr/local/bin:"+rootDir+"/usr/bin");
-        envVars.put("WINELOADERNOEXEC", "1");
-        envVars.put("BOX64_LOG", "2");
-        envVars.put("BOX64_SHOWSEGV", "1");
-        envVars.put("BOX64_DLSYM_ERROR", "1");'''
+        envVars.put("BOX64_LOG", "1");'''
 
 
 def replace_once(text: str, old: str, new: str, label: str) -> str:
