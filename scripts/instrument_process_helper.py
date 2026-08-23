@@ -12,6 +12,12 @@ ORIGINAL = '''            java.lang.Process process = processBuilder.start();
 '''
 
 INSTRUMENTED = '''            emitValidationExecTrace("exec:before-start command=" + command);
+            emitValidationExecTrace("exec:env WINELOADERNOEXEC=" + String.valueOf(environment.get("WINELOADERNOEXEC"))
+                    + " BOX64_PATH=" + String.valueOf(environment.get("BOX64_PATH"))
+                    + " BOX64_LD_LIBRARY_PATH=" + String.valueOf(environment.get("BOX64_LD_LIBRARY_PATH"))
+                    + " WINEPREFIX=" + String.valueOf(environment.get("WINEPREFIX"))
+                    + " PATH=" + String.valueOf(environment.get("PATH"))
+                    + " LD_LIBRARY_PATH=" + String.valueOf(environment.get("LD_LIBRARY_PATH")));
             java.lang.Process process = processBuilder.start();
             emitValidationExecTrace("exec:process-created class=" + process.getClass().getName());
             emitValidationExecTrace("exec:pid-reflection-start");
