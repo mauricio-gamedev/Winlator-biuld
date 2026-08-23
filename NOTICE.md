@@ -4,9 +4,9 @@
 
 Winlator Build is maintained as an independent integration and compatibility project.
 
-Original project-specific work in this repository — including architecture decisions, integration code, validation infrastructure, custom patching logic, diagnostics, documentation, compatibility work, and original modifications — is maintained by **@astromg01**.
+Original project-specific work in this repository — including architecture decisions, integration code, validation infrastructure, custom patching logic, diagnostics, documentation, compatibility work, and original modifications — is maintained by **Mauricio.dev (@mauricio-gamedev)**.
 
-**Copyright © 2026 @astromg01. All rights reserved for original project-specific material, except where another license or copyright notice applies.**
+**Copyright © 2026 Mauricio.dev (@mauricio-gamedev). All rights reserved for original project-specific material, except where another license or copyright notice applies.**
 
 This notice establishes authorship and an audit trail for original material. It does not relicense or claim ownership of third-party code.
 
@@ -39,4 +39,4 @@ When importing third-party patches or techniques, source attribution and applica
 
 ## Distribution note
 
-Development APKs may bundle or depend on third-party software. Publishing an APK under a Winlator Build release does not transfer ownership of third-party components to Winlator Build or @astromg01.
+Development APKs may bundle or depend on third-party software. Publishing an APK under a Winlator Build release does not transfer ownership of third-party components to Winlator Build or Mauricio.dev (@mauricio-gamedev).
