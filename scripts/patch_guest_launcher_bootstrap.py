@@ -7,16 +7,40 @@ from pathlib import Path
 OLD_COMMAND = '''        String command = rootDir+"/usr/local/bin/box64 "+guestExecutable;'''
 NEW_COMMAND = '''        File loader = new File(rootDir, "/lib/ld-linux-aarch64.so.1");
         File box64 = new File(rootDir, "/usr/local/bin/box64");
-        File wine = new File(rootDir, rootFS.getWinePath()+"/bin/wine");
-        File winePreloader = new File(rootDir, rootFS.getWinePath()+"/bin/wine-preloader");
-        if (!loader.isFile() || !loader.canExecute() || !box64.isFile() || !box64.canExecute()
-                || !wine.isFile() || !wine.canExecute() || !winePreloader.isFile() || !winePreloader.canExecute()) {
+        if (!loader.isFile() || !loader.canExecute() || !box64.isFile() || !box64.canExecute()) {
             if (terminationCallback != null) terminationCallback.call(-1);
             return -1;
         }
 
         String launchTarget = guestExecutable;
         if (guestExecutable.equals("wine") || guestExecutable.startsWith("wine ")) {
+            File wine = new File(rootDir, rootFS.getWinePath()+"/bin/wine");
+            if (!wine.isFile() || !wine.canExecute()) {
+                if (terminationCallback != null) terminationCallback.call(-1);
+                return -1;
+            }
+
+            File winePreloader = new File(rootDir, rootFS.getWinePath()+"/bin/wine-preloader");
+            if (!winePreloader.isFile() || !winePreloader.canExecute()) {
+                File wine64Preloader = new File(rootDir, rootFS.getWinePath()+"/bin/wine64-preloader");
+                if (wine64Preloader.isFile() && wine64Preloader.canExecute()) {
+                    winePreloader = wine64Preloader;
+                }
+                else {
+                    // Some Android Wine packages intentionally omit the native preloader binary.
+                    // Box64 only needs a valid x86_64 target whose argv path is named
+                    // wine-preloader in order to enter its built-in preloader-skip path.
+                    // A symlink avoids copying or modifying the packaged Wine executable.
+                    winePreloader = new File(rootDir, "/tmp/wine-preloader");
+                    FileUtils.symlink(wine, winePreloader);
+                }
+            }
+
+            if (!winePreloader.isFile() || !winePreloader.canExecute()) {
+                if (terminationCallback != null) terminationCallback.call(-1);
+                return -1;
+            }
+
             String wineArgs = guestExecutable.length() > 4 ? guestExecutable.substring(4) : "";
             launchTarget = winePreloader.getPath()+" "+wine.getPath()+wineArgs;
         }
