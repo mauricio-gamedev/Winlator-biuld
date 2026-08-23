@@ -5,9 +5,8 @@ import sys
 from pathlib import Path
 
 # Keep the upstream Winlator ProcessBuilder path and instrument it only. The
-# previous Runtime.exec experiment did not solve the launch failure; the
-# persisted IOException proved that the executable chain itself needed the
-# rootfs ARM64 ELF loader. Process creation should therefore stay upstream.
+# persisted traces are intentionally bounded to launch-critical environment
+# variables so one device test is enough to diagnose the complete bootstrap.
 ORIGINAL = '''            java.lang.Process process = processBuilder.start();
             Field pidField = process.getClass().getDeclaredField("pid");
             pidField.setAccessible(true);
@@ -18,11 +17,18 @@ ORIGINAL = '''            java.lang.Process process = processBuilder.start();
 INSTRUMENTED = '''            emitValidationExecTrace("exec:before-start command=" + command);
             emitValidationExecTrace("exec:mode=process-builder");
             emitValidationExecTrace("exec:env WINELOADERNOEXEC=" + String.valueOf(environment.get("WINELOADERNOEXEC"))
+                    + " BOX64_BASELINE=" + String.valueOf(environment.get("WINLATOR_BOX64_BASELINE"))
                     + " BOX64_PATH=" + String.valueOf(environment.get("BOX64_PATH"))
                     + " BOX64_LD_LIBRARY_PATH=" + String.valueOf(environment.get("BOX64_LD_LIBRARY_PATH"))
+                    + " BOX64_MMAP32=" + String.valueOf(environment.get("BOX64_MMAP32"))
+                    + " BOX64_X11GLX=" + String.valueOf(environment.get("BOX64_X11GLX"))
+                    + " BOX64_LOG=" + String.valueOf(environment.get("BOX64_LOG"))
                     + " WINEPREFIX=" + String.valueOf(environment.get("WINEPREFIX"))
                     + " PATH=" + String.valueOf(environment.get("PATH"))
-                    + " LD_LIBRARY_PATH=" + String.valueOf(environment.get("LD_LIBRARY_PATH")));
+                    + " LD_LIBRARY_PATH=" + String.valueOf(environment.get("LD_LIBRARY_PATH"))
+                    + " LD_PRELOAD=" + String.valueOf(environment.get("LD_PRELOAD"))
+                    + " FONTCONFIG_PATH=" + String.valueOf(environment.get("FONTCONFIG_PATH"))
+                    + " ANDROID_SYSVSHM_SERVER=" + String.valueOf(environment.get("ANDROID_SYSVSHM_SERVER")));
             java.lang.Process process = processBuilder.start();
             emitValidationExecTrace("exec:process-created class=" + process.getClass().getName());
             emitValidationExecTrace("exec:pid-reflection-start");
