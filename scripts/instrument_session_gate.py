@@ -17,7 +17,8 @@ REPLACEMENTS = [
         "public class XServerDisplayActivity extends AppCompatActivity implements NavigationView.OnNavigationItemSelectedListener {\n"
         "    private static final String SESSION_GATE_TAG = \"WinlatorSessionGate\";\n"
         "    private static final String SESSION_GATE_FILE = \"session-gate.log\";\n"
-        "    private Thread.UncaughtExceptionHandler sessionGatePreviousHandler;\n\n"
+        "    private Thread.UncaughtExceptionHandler sessionGatePreviousHandler;\n"
+        "    private int sessionGateOutputLines = 0;\n\n"
         "    private synchronized void sessionGate(String stage) {\n"
         "        String line = System.currentTimeMillis() + \" [\" + Thread.currentThread().getName() + \"] \" + stage;\n"
         "        Log.i(SESSION_GATE_TAG, line);\n"
@@ -26,6 +27,15 @@ REPLACEMENTS = [
         "            writer.write('\\n');\n"
         "            writer.flush();\n"
         "        } catch (Throwable ignored) {}\n"
+        "    }\n\n"
+        "    private synchronized void sessionGateProcessOutput(String line) {\n"
+        "        if (sessionGateOutputLines < 240) {\n"
+        "            sessionGateOutputLines++;\n"
+        "            sessionGate(\"P1 guest-output \" + line);\n"
+        "        } else if (sessionGateOutputLines == 240) {\n"
+        "            sessionGateOutputLines++;\n"
+        "            sessionGate(\"P1 guest-output [truncated after 240 lines]\");\n"
+        "        }\n"
         "    }\n\n"
         "    private void installSessionGateCrashHandler() {\n"
         "        sessionGatePreviousHandler = Thread.getDefaultUncaughtExceptionHandler();\n"
@@ -53,6 +63,11 @@ REPLACEMENTS = [
         "        installSessionGateCrashHandler();\n"
         "        sessionGate(\"00 session-start intent-container-id=\" + getIntent().getIntExtra(\"container_id\", 0));",
         "session start/crash handler",
+    ),
+    (
+        "        ProcessHelper.removeAllDebugCallbacks();",
+        "        ProcessHelper.removeAllDebugCallbacks();\n        ProcessHelper.addDebugCallback(this::sessionGateProcessOutput);\n        sessionGate(\"D1 process-output-capture-enabled\");",
+        "process output capture",
     ),
     (
         "        rootFS = RootFS.find(this);",
@@ -111,7 +126,7 @@ REPLACEMENTS = [
     ),
     (
         "    protected void onDestroy() {\n        winHandler.stop();",
-        "    protected void onDestroy() {\n        sessionGate(\"10 activity-destroy finishing=\" + isFinishing() + \" changing-config=\" + isChangingConfigurations());\n        restoreSessionGateCrashHandler();\n        winHandler.stop();",
+        "    protected void onDestroy() {\n        sessionGate(\"10 activity-destroy finishing=\" + isFinishing() + \" changing-config=\" + isChangingConfigurations());\n        ProcessHelper.removeAllDebugCallbacks();\n        restoreSessionGateCrashHandler();\n        winHandler.stop();",
         "destroy stage",
     ),
 ]
