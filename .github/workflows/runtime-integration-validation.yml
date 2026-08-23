@@ -9,6 +9,8 @@ on:
       - "tests/patcher/**"
       - "validation/**"
       - "scripts/test_runtime_integration.sh"
+      - "scripts/materialize_amod_box64_baseline.sh"
+      - "scripts/patch_amod_box64_baseline.py"
       - "scripts/validate_box64_baseline_asset.sh"
       - "scripts/inspect_wine_loader_layout.sh"
       - "scripts/validate_minimal_container_pattern.sh"
@@ -26,6 +28,8 @@ on:
       - "tests/patcher/**"
       - "validation/**"
       - "scripts/test_runtime_integration.sh"
+      - "scripts/materialize_amod_box64_baseline.sh"
+      - "scripts/patch_amod_box64_baseline.py"
       - "scripts/validate_box64_baseline_asset.sh"
       - "scripts/inspect_wine_loader_layout.sh"
       - "scripts/validate_minimal_container_pattern.sh"
@@ -54,6 +58,9 @@ jobs:
 
       - name: Validate upstream patcher
         run: python3 tests/patcher/test_apply_upstream_patches.py
+
+      - name: Validate AMOD Box64 baseline patch
+        run: python3 tests/patcher/test_amod_box64_baseline.py
 
       - name: Validate ProcessHelper diagnostic instrumentation
         run: python3 tests/patcher/test_instrument_process_helper.py
@@ -99,7 +106,10 @@ jobs:
             -keystore "$RUNNER_TEMP/winlator-buildtest-signing/buildtest.keystore" \
             -storepass android -alias buildtest | grep -E 'SHA256:|Alias name:'
 
-      - name: Validate pinned Box64 package layout
+      - name: Materialize pinned AMOD Box64 0.4.1
+        run: sh scripts/materialize_amod_box64_baseline.sh
+
+      - name: Validate AMOD Box64 direct-exec package
         run: sh scripts/validate_box64_baseline_asset.sh
 
       - name: Inspect packaged Wine loader layout
