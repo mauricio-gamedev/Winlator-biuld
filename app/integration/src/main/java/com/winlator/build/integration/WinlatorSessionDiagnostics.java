@@ -16,6 +16,7 @@ public final class WinlatorSessionDiagnostics {
     private static final int MAX_DISPLAY_BYTES = 48 * 1024;
     private static final String SESSION_START_MARKER = "00 session-start";
     private static final String EXEC_COMMAND_MARKER = "exec:before-start command=";
+    private static final String EXEC_EXCEPTION_MARKER = "exec:exception ";
     private static final String TAIL_START = "P1-tail-start";
     private static final String TAIL_END = "P1-tail-end";
 
@@ -29,7 +30,7 @@ public final class WinlatorSessionDiagnostics {
         final String logText;
         if (hasLog) {
             String latest = latestSession(readTail(file));
-            logText = launchCommand(latest) + "\n\n" + sessionState(latest) + "\n\n" + preservedTerminationTail(latest);
+            logText = launchCommand(latest) + "\n\n" + sessionState(latest) + "\n\n" + launchException(latest) + "\n\n" + preservedTerminationTail(latest);
         }
         else {
             logText = "No session-gate log has been recorded yet.\n\nRun a container once, then inspect this gate again.";
@@ -79,12 +80,26 @@ public final class WinlatorSessionDiagnostics {
         boolean destroyed = text.contains("10 activity-destroy");
         boolean processCreated = text.contains("exec:process-created");
         boolean pidObtained = text.contains("exec:pid-obtained");
+        boolean launchException = text.contains(EXEC_EXCEPTION_MARKER);
         return "[session state]\n"
                 + "process-created=" + processCreated + "\n"
                 + "pid-obtained=" + pidObtained + "\n"
                 + "first-renderable-window=" + firstWindow + "\n"
                 + "guest-terminated=" + terminated + "\n"
-                + "activity-destroyed=" + destroyed;
+                + "activity-destroyed=" + destroyed + "\n"
+                + "launch-exception=" + launchException;
+    }
+
+    private static String launchException(String text) {
+        if (text == null || text.isEmpty()) return "[launch exception]\n(none captured)";
+        String[] lines = text.split("\\r?\\n");
+        for (int i = lines.length - 1; i >= 0; i--) {
+            int marker = lines[i].indexOf(EXEC_EXCEPTION_MARKER);
+            if (marker >= 0) {
+                return "[launch exception]\n" + lines[i].substring(marker + EXEC_EXCEPTION_MARKER.length()).trim();
+            }
+        }
+        return "[launch exception]\n(none captured)";
     }
 
     private static String preservedTerminationTail(String text) {
