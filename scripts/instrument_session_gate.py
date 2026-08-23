@@ -9,7 +9,7 @@ TAG = "WinlatorSessionGate"
 REPLACEMENTS = [
     (
         "import android.view.KeyEvent;",
-        "import android.view.KeyEvent;\nimport android.util.Log;\n\nimport java.io.File;\nimport java.io.FileWriter;\nimport java.io.PrintWriter;\nimport java.io.StringWriter;",
+        "import android.view.KeyEvent;\nimport android.util.Log;\n\nimport java.io.File;\nimport java.io.FileWriter;\nimport java.io.PrintWriter;\nimport java.io.StringWriter;\nimport java.util.ArrayDeque;\nimport java.util.Deque;",
         "diagnostic imports",
     ),
     (
@@ -17,8 +17,9 @@ REPLACEMENTS = [
         "public class XServerDisplayActivity extends AppCompatActivity implements NavigationView.OnNavigationItemSelectedListener {\n"
         "    private static final String SESSION_GATE_TAG = \"WinlatorSessionGate\";\n"
         "    private static final String SESSION_GATE_FILE = \"session-gate.log\";\n"
+        "    private static final int SESSION_GATE_OUTPUT_TAIL_LINES = 24;\n"
         "    private Thread.UncaughtExceptionHandler sessionGatePreviousHandler;\n"
-        "    private int sessionGateOutputLines = 0;\n\n"
+        "    private final Deque<String> sessionGateOutputTail = new ArrayDeque<>();\n\n"
         "    private synchronized void sessionGate(String stage) {\n"
         "        String line = System.currentTimeMillis() + \" [\" + Thread.currentThread().getName() + \"] \" + stage;\n"
         "        Log.i(SESSION_GATE_TAG, line);\n"
@@ -29,13 +30,15 @@ REPLACEMENTS = [
         "        } catch (Throwable ignored) {}\n"
         "    }\n\n"
         "    private synchronized void sessionGateProcessOutput(String line) {\n"
-        "        if (sessionGateOutputLines < 240) {\n"
-        "            sessionGateOutputLines++;\n"
-        "            sessionGate(\"P1 guest-output \" + line);\n"
-        "        } else if (sessionGateOutputLines == 240) {\n"
-        "            sessionGateOutputLines++;\n"
-        "            sessionGate(\"P1 guest-output [truncated after 240 lines]\");\n"
-        "        }\n"
+        "        if (line == null) return;\n"
+        "        if (sessionGateOutputTail.size() >= SESSION_GATE_OUTPUT_TAIL_LINES) sessionGateOutputTail.removeFirst();\n"
+        "        sessionGateOutputTail.addLast(line);\n"
+        "    }\n\n"
+        "    private synchronized void sessionGateFlushProcessOutputTail() {\n"
+        "        sessionGate(\"P1-tail-start lines=\" + sessionGateOutputTail.size());\n"
+        "        for (String line : sessionGateOutputTail) sessionGate(\"P1-tail \" + line);\n"
+        "        sessionGate(\"P1-tail-end\");\n"
+        "        sessionGateOutputTail.clear();\n"
         "    }\n\n"
         "    private void installSessionGateCrashHandler() {\n"
         "        sessionGatePreviousHandler = Thread.getDefaultUncaughtExceptionHandler();\n"
@@ -101,7 +104,7 @@ REPLACEMENTS = [
     ),
     (
         "        guestProgramLauncherComponent.setEnvVars(envVars);\n        guestProgramLauncherComponent.setTerminationCallback((status) -> exit());\n        environment.addComponent(guestProgramLauncherComponent);",
-        "        guestProgramLauncherComponent.setEnvVars(envVars);\n        sessionGate(\"07c guest-configured command=\" + getWineStartCommand());\n        guestProgramLauncherComponent.setTerminationCallback((status) -> {\n            sessionGate(\"G1 guest-terminated status=\" + status + \" finishing=\" + isFinishing());\n            exit();\n        });\n        environment.addComponent(guestProgramLauncherComponent);\n        sessionGate(\"07d guest-component-added\");",
+        "        guestProgramLauncherComponent.setEnvVars(envVars);\n        sessionGate(\"07c guest-configured command=\" + getWineStartCommand());\n        guestProgramLauncherComponent.setTerminationCallback((status) -> {\n            sessionGateFlushProcessOutputTail();\n            sessionGate(\"G1 guest-terminated status=\" + status + \" finishing=\" + isFinishing());\n            exit();\n        });\n        environment.addComponent(guestProgramLauncherComponent);\n        sessionGate(\"07d guest-component-added\");",
         "guest launcher termination stage",
     ),
     (
