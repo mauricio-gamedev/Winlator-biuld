@@ -17,6 +17,7 @@ import java.nio.charset.StandardCharsets;
 public final class WinlatorSessionDiagnostics {
     private static final String FILE_NAME = "session-gate.log";
     private static final int MAX_DISPLAY_BYTES = 48 * 1024;
+    private static final String SESSION_START_MARKER = "00 session-start";
 
     private WinlatorSessionDiagnostics() {}
 
@@ -26,15 +27,15 @@ public final class WinlatorSessionDiagnostics {
         File file = new File(context.getFilesDir(), FILE_NAME);
         final boolean hasLog = file.isFile() && file.length() > 0;
         final String logText = hasLog
-                ? readTail(file)
+                ? latestSession(readTail(file))
                 : "No session-gate log has been recorded yet.\n\nRun a container once, then inspect this gate again.";
 
         try {
             ContentDialog dialog = new ContentDialog(context);
-            dialog.setTitle("Session gate");
+            dialog.setTitle("Session gate — latest run");
             dialog.setMessage(logText);
             dialog.setBottomBarText(hasLog
-                    ? "Persistent session trace — use COPY LOG for the complete visible tail"
+                    ? "Showing only the latest recorded session — use COPY LOG to copy it"
                     : "Persistent diagnostic — survives Activity exit/crash");
 
             Button cancel = dialog.findViewById(R.id.BTCancel);
@@ -55,7 +56,7 @@ public final class WinlatorSessionDiagnostics {
             if (hasLog) {
                 copyLog(context, logText);
                 Toast.makeText(context,
-                        "Viewer failed; session log copied instead (" + error.getClass().getSimpleName() + ")",
+                        "Viewer failed; latest session log copied instead (" + error.getClass().getSimpleName() + ")",
                         Toast.LENGTH_LONG).show();
             } else {
                 Toast.makeText(context,
@@ -65,12 +66,26 @@ public final class WinlatorSessionDiagnostics {
         }
     }
 
+    private static String latestSession(String text) {
+        if (text == null || text.isEmpty()) return text;
+
+        int marker = text.lastIndexOf(SESSION_START_MARKER);
+        if (marker < 0) return text;
+
+        int lineStart = text.lastIndexOf('\n', marker);
+        if (lineStart < 0) lineStart = 0;
+        else lineStart += 1;
+
+        String latest = text.substring(lineStart).trim();
+        return latest.isEmpty() ? text : latest;
+    }
+
     private static void copyLog(Context context, String logText) {
         try {
             ClipboardManager clipboard = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
             if (clipboard != null) {
-                clipboard.setPrimaryClip(ClipData.newPlainText("Winlator session gate", logText));
-                Toast.makeText(context, "Session log copied", Toast.LENGTH_SHORT).show();
+                clipboard.setPrimaryClip(ClipData.newPlainText("Winlator latest session gate", logText));
+                Toast.makeText(context, "Latest session log copied", Toast.LENGTH_SHORT).show();
             } else {
                 Toast.makeText(context, "Clipboard unavailable", Toast.LENGTH_SHORT).show();
             }
