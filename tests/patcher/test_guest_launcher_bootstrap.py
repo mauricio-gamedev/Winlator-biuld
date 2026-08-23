@@ -17,6 +17,7 @@ SOURCE = '''class GuestProgramLauncherComponent {
         envVars.put("LD_LIBRARY_PATH", rootFS.getLibDir().getPath());
         envVars.put("BOX64_LD_LIBRARY_PATH", rootDir+"/lib/x86_64-linux-gnu");
         String guestExecutable = "guest";
+        Object terminationCallback = null;
         String command = rootDir+"/usr/local/bin/box64 "+guestExecutable;
         return 0;
     }
@@ -37,14 +38,19 @@ def main() -> int:
         assert first.returncode == 0, first.stderr
         patched = path.read_text(encoding="utf-8")
 
-        # Box64 is glibc-linked ARM64, so execute it through the packaged rootfs
-        # loader. Wine itself remains a direct x86_64 Box64 target.
+        # Native ARM64 loader and Box64 are resolved explicitly.
         assert 'new File(rootDir, "/lib/ld-linux-aarch64.so.1")' in patched
+        assert 'new File(rootDir, "/usr/lib/ld-linux-aarch64.so.1")' in patched
         assert 'new File(rootDir, "/usr/local/bin/box64")' in patched
-        assert 'String command = loader.getPath()+" "+box64.getPath()+" "+launchTarget' in patched
+        assert '"/lib/aarch64-linux-gnu"' in patched
+        assert '"/usr/lib/aarch64-linux-gnu"' in patched
+        assert '"/lib64"' in patched
+        assert '"/usr/lib64"' in patched
+        assert 'String nativeLibraryPath = nativeLibraryPathBuilder.toString()' in patched
+        assert ' --inhibit-cache --library-path ' in patched
         assert 'wine-preloader' not in patched
 
-        # Wine executable and runtime layout are resolved explicitly.
+        # Wine executable and runtime layout follow the AMOD glibc path.
         assert 'trimmedGuestExecutable.equals("wine")' in patched
         assert 'trimmedGuestExecutable.equals("wine64")' in patched
         assert 'String winePath = rootFS.getWinePath()' in patched
@@ -57,9 +63,15 @@ def main() -> int:
         assert 'rootDir+"/usr/lib/x86_64-linux-gnu:"+rootDir+"/lib/x86_64-linux-gnu:"+ldLibraryPath' in patched
         assert 'envVars.put("BOX64_MMAP32", "1")' in patched
         assert 'envVars.put("BOX64_X11GLX", "1")' in patched
+        assert 'envVars.put("BOX64_LOG", "1")' in patched
+
+        # AMOD runtime support paths are included in the same patch.
+        assert 'envVars.put("FONTCONFIG_PATH", fontConfigDir.getPath())' in patched
+        assert 'libandroid-sysvshm.so' in patched
+        assert 'envVars.put("LD_PRELOAD", sysvShm.getPath())' in patched
 
         assert 'launchTarget = wine.getPath()+(wineArgs.isEmpty() ? "" : " "+wineArgs)' in patched
-        assert patched.count('terminationCallback.call(-1)') >= 2
+        assert patched.count('terminationCallback.call(-1)') >= 3
 
         second = run(path)
         assert second.returncode == 0, second.stderr
