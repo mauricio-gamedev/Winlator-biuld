@@ -4,6 +4,7 @@ set -eu
 ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 UPSTREAM_DIR="$ROOT_DIR/third_party/winlator-app"
 JAVA_ROOT="$UPSTREAM_DIR/app/src/main/java/com/winlator/build"
+DEFAULT_VERSION="$UPSTREAM_DIR/app/src/main/java/com/winlator/core/DefaultVersion.java"
 PROCESS_HELPER="$UPSTREAM_DIR/app/src/main/java/com/winlator/core/ProcessHelper.java"
 GUEST_LAUNCHER="$UPSTREAM_DIR/app/src/main/java/com/winlator/xenvironment/components/GuestProgramLauncherComponent.java"
 SESSION_ACTIVITY="$UPSTREAM_DIR/app/src/main/java/com/winlator/XServerDisplayActivity.java"
@@ -14,11 +15,15 @@ if [ ! -f "$UPSTREAM_DIR/app/build.gradle" ]; then
     exit 1
 fi
 
+# Keep the launcher and Box64 package from the same proven AMOD glibc baseline.
+sh "$ROOT_DIR/scripts/materialize_amod_box64_baseline.sh"
+
 rm -rf "$JAVA_ROOT/engine" "$JAVA_ROOT/integration"
 mkdir -p "$JAVA_ROOT/engine" "$JAVA_ROOT/integration"
 cp -R "$ROOT_DIR/engine/src/main/java/com/winlator/build/engine/." "$JAVA_ROOT/engine/"
 cp -R "$ROOT_DIR/app/integration/src/main/java/com/winlator/build/integration/." "$JAVA_ROOT/integration/"
 python3 "$ROOT_DIR/scripts/apply_upstream_patches.py" "$UPSTREAM_DIR"
+python3 "$ROOT_DIR/scripts/patch_amod_box64_baseline.py" "$DEFAULT_VERSION" "$GUEST_LAUNCHER"
 python3 "$ROOT_DIR/scripts/patch_guest_launcher_bootstrap.py" "$GUEST_LAUNCHER"
 python3 "$ROOT_DIR/scripts/instrument_process_helper.py" "$PROCESS_HELPER"
 python3 "$ROOT_DIR/scripts/instrument_session_gate.py" "$SESSION_ACTIVITY"
