@@ -10,14 +10,12 @@ import com.winlator.contentdialog.ContentDialog;
 import java.io.File;
 import java.io.FileInputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.List;
 
 public final class WinlatorSessionDiagnostics {
     private static final String FILE_NAME = "session-gate.log";
     private static final int MAX_DISPLAY_BYTES = 48 * 1024;
     private static final String SESSION_START_MARKER = "00 session-start";
-    private static final int MAX_FAILURE_LINES = 16;
+    private static final int RAW_LINES_BEFORE_TERMINATION = 11;
 
     private WinlatorSessionDiagnostics() {}
 
@@ -27,14 +25,14 @@ public final class WinlatorSessionDiagnostics {
         File file = new File(context.getFilesDir(), FILE_NAME);
         final boolean hasLog = file.isFile() && file.length() > 0;
         final String logText = hasLog
-                ? failureTail(latestSession(readTail(file)))
+                ? rawTerminationTail(latestSession(readTail(file)))
                 : "No session-gate log has been recorded yet.\n\nRun a container once, then inspect this gate again.";
 
         ContentDialog dialog = new ContentDialog(context);
-        dialog.setTitle("Session gate — Box64/Wine failure");
+        dialog.setTitle("Session gate — final guest output");
         dialog.setMessage(logText);
         dialog.setBottomBarText(hasLog
-                ? "Latest session — final Box64/Wine failure events only"
+                ? "Latest session — raw lines immediately before guest termination"
                 : "Persistent diagnostic — survives Activity exit/crash");
 
         View cancel = dialog.findViewById(R.id.BTCancel);
@@ -58,40 +56,28 @@ public final class WinlatorSessionDiagnostics {
         return latest.isEmpty() ? text : latest;
     }
 
-    private static String failureTail(String text) {
+    private static String rawTerminationTail(String text) {
         if (text == null || text.isEmpty()) return text;
 
         String[] lines = text.split("\\r?\\n");
-        List<String> relevant = new ArrayList<>();
-        for (String line : lines) {
-            String lower = line.toLowerCase();
-            boolean guestOutput = line.contains("P1 guest-output");
-            boolean box64OrWine = line.contains("[BOX64]")
-                    || lower.contains("wine:")
-                    || lower.contains("error")
-                    || lower.contains("failed")
-                    || lower.contains("missing")
-                    || lower.contains("cannot")
-                    || lower.contains("could not")
-                    || lower.contains("not found");
-
-            if ((guestOutput && box64OrWine)
-                    || line.contains("G1 guest-terminated")
-                    || line.contains("CRASH ")) {
-                relevant.add(line);
+        int termination = -1;
+        for (int i = lines.length - 1; i >= 0; i--) {
+            if (lines[i].contains("G1 guest-terminated")) {
+                termination = i;
+                break;
             }
         }
 
-        if (relevant.isEmpty()) {
-            return "No Box64/Wine failure output was found in the latest session.";
+        if (termination < 0) {
+            return "Guest termination has not been recorded in the latest session yet.";
         }
 
-        int start = Math.max(0, relevant.size() - MAX_FAILURE_LINES);
+        int start = Math.max(0, termination - RAW_LINES_BEFORE_TERMINATION);
         StringBuilder builder = new StringBuilder();
-        if (start > 0) builder.append("[showing final ").append(MAX_FAILURE_LINES).append(" matching events]\n");
-        for (int i = start; i < relevant.size(); i++) {
-            if (builder.length() > 0) builder.append('\n');
-            builder.append(relevant.get(i));
+        builder.append("[raw output before status]\n");
+        for (int i = start; i <= termination; i++) {
+            if (i > start) builder.append('\n');
+            builder.append(lines[i]);
         }
         return builder.toString();
     }
