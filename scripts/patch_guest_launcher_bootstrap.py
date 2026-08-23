@@ -4,32 +4,65 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+# AMOD's glibc launcher keeps x86_64 Wine under Box64 and resolves the Wine
+# executable and runtime libraries explicitly. It does not force the ARM64
+# loader or wine-preloader into the x86_64 Wine command line.
+# Reference: afeimod/winlator-mod, branch winlator-glibc,
+# GlibcProgramLauncherComponent.java.
 OLD_COMMAND = '''        String command = rootDir+"/usr/local/bin/box64 "+guestExecutable;'''
-NEW_COMMAND = '''        File loader = new File(rootDir, "/lib/ld-linux-aarch64.so.1");
-        File box64 = new File(rootDir, "/usr/local/bin/box64");
-        if (!loader.isFile() || !loader.canExecute() || !box64.isFile() || !box64.canExecute()) {
-            if (terminationCallback != null) terminationCallback.call(-1);
-            return -1;
-        }
+NEW_COMMAND = '''        String launchTarget = guestExecutable;
+        String trimmedGuestExecutable = guestExecutable != null ? guestExecutable.trim() : "";
+        boolean launchesWine = trimmedGuestExecutable.equals("wine")
+                || trimmedGuestExecutable.startsWith("wine ")
+                || trimmedGuestExecutable.equals("wine64")
+                || trimmedGuestExecutable.startsWith("wine64 ");
 
-        String launchTarget = guestExecutable;
-        if (guestExecutable.equals("wine") || guestExecutable.startsWith("wine ")) {
-            File wine = new File(rootDir, rootFS.getWinePath()+"/bin/wine");
-            File winePreloader = new File(rootDir, rootFS.getWinePath()+"/lib/wine/x86_64-unix/wine-preloader");
-            if (!wine.isFile() || !wine.canExecute() || !winePreloader.isFile() || !winePreloader.canExecute()) {
+        if (launchesWine) {
+            String wineArgs;
+            if (trimmedGuestExecutable.equals("wine") || trimmedGuestExecutable.equals("wine64")) {
+                wineArgs = "";
+            }
+            else if (trimmedGuestExecutable.startsWith("wine64 ")) {
+                wineArgs = trimmedGuestExecutable.substring(7).trim();
+            }
+            else {
+                wineArgs = trimmedGuestExecutable.substring(5).trim();
+            }
+
+            String winePath = rootFS.getWinePath();
+            if (winePath.startsWith("/")) winePath = winePath.substring(1);
+            File wineDir = new File(rootDir, winePath);
+            File wineBinDir = new File(wineDir, "bin");
+            File wine = new File(wineBinDir, "wine64");
+            if (!wine.isFile()) wine = new File(wineBinDir, "wine");
+            if (!wine.isFile() || !wine.canExecute()) {
                 if (terminationCallback != null) terminationCallback.call(-1);
                 return -1;
             }
 
-            String wineArgs = guestExecutable.length() > 4 ? guestExecutable.substring(4) : "";
-            launchTarget = winePreloader.getPath()+" "+wine.getPath()+wineArgs;
-        }
-        String command = loader.getPath()+" "+box64.getPath()+" "+launchTarget;'''
+            File wineLibDir = new File(wineDir, "lib");
+            File wineLib64Dir = new File(wineDir, "lib64");
+            File wineDllDir = new File(wineLibDir, "wine");
+            if (!wineDllDir.isDirectory()) wineDllDir = new File(wineLib64Dir, "wine");
 
-OLD_ENV = '''        envVars.put("BOX64_LD_LIBRARY_PATH", rootDir+"/lib/x86_64-linux-gnu");'''
-NEW_ENV = '''        envVars.put("BOX64_LD_LIBRARY_PATH", rootDir+"/lib/x86_64-linux-gnu");
-        envVars.put("BOX64_PATH", rootDir+rootFS.getWinePath()+"/bin:"+rootDir+"/usr/local/bin:"+rootDir+"/usr/bin");
-        envVars.put("BOX64_LOG", "1");'''
+            String ldLibraryPath = rootFS.getLibDir().getPath();
+            if (wineLibDir.isDirectory()) ldLibraryPath = wineLibDir.getPath()+":"+ldLibraryPath;
+            if (wineLib64Dir.isDirectory()) ldLibraryPath = wineLib64Dir.getPath()+":"+ldLibraryPath;
+            if (wineDllDir.isDirectory()) {
+                envVars.put("WINEDLLPATH", wineDllDir.getPath());
+                File unix64Dir = new File(wineDllDir, "x86_64-unix");
+                if (unix64Dir.isDirectory()) ldLibraryPath = unix64Dir.getPath()+":"+ldLibraryPath;
+            }
+
+            envVars.put("LD_LIBRARY_PATH", ldLibraryPath);
+            envVars.put("BOX64_LD_LIBRARY_PATH",
+                    rootDir+"/lib/x86_64-linux-gnu:"+rootDir+"/usr/lib/x86_64-linux-gnu:"+ldLibraryPath);
+            envVars.put("BOX64_MMAP32", "1");
+
+            launchTarget = wine.getPath()+(wineArgs.isEmpty() ? "" : " "+wineArgs);
+        }
+
+        String command = rootDir+"/usr/local/bin/box64 "+launchTarget;'''
 
 
 def replace_once(text: str, old: str, new: str, label: str) -> str:
@@ -53,8 +86,7 @@ def main() -> int:
 
     original = path.read_text(encoding="utf-8")
     try:
-        updated = replace_once(original, OLD_COMMAND, NEW_COMMAND, "guest launcher bootstrap command")
-        updated = replace_once(updated, OLD_ENV, NEW_ENV, "guest launcher Wine/Box64 environment")
+        updated = replace_once(original, OLD_COMMAND, NEW_COMMAND, "AMOD-style guest launcher bootstrap")
     except RuntimeError as error:
         print(f"guest launcher bootstrap: {error}", file=sys.stderr)
         return 1
