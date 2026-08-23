@@ -30,18 +30,19 @@ def run(path: Path):
 
 
 def main() -> int:
-    with tempfile.TemporaryDirectory(prefix="guest-launcher-amod-pair-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="guest-launcher-rootfs-loader-") as tmp:
         path = Path(tmp) / "GuestProgramLauncherComponent.java"
         path.write_text(SOURCE, encoding="utf-8")
         first = run(path)
         assert first.returncode == 0, first.stderr
         patched = path.read_text(encoding="utf-8")
 
-        # x86_64 Wine must be handed directly to the matching AMOD Box64.
+        # Box64 is glibc-linked ARM64, so execute it through the packaged rootfs
+        # loader. Wine itself remains a direct x86_64 Box64 target.
+        assert 'new File(rootDir, "/lib/ld-linux-aarch64.so.1")' in patched
         assert 'new File(rootDir, "/usr/local/bin/box64")' in patched
-        assert 'ld-linux-aarch64.so.1' not in patched
+        assert 'String command = loader.getPath()+" "+box64.getPath()+" "+launchTarget' in patched
         assert 'wine-preloader' not in patched
-        assert 'String command = box64.getPath()+" "+launchTarget' in patched
 
         # Wine executable and runtime layout are resolved explicitly.
         assert 'trimmedGuestExecutable.equals("wine")' in patched
@@ -69,7 +70,7 @@ def main() -> int:
         path.write_text(SOURCE.replace('/usr/local/bin/box64 ', '/usr/local/bin/box64-custom '), encoding="utf-8")
         result = run(path)
         assert result.returncode != 0
-        assert "AMOD Box64/Wine guest bootstrap" in result.stderr
+        assert "rootfs-loader Box64/Wine guest bootstrap" in result.stderr
 
     print("test_guest_launcher_bootstrap: all tests passed")
     return 0
