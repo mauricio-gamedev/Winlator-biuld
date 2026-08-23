@@ -41,6 +41,7 @@ def main() -> int:
         assert 'terminationCallback.call(-1)' in patched
         assert 'envVars.put("BOX64_PATH", rootDir+rootFS.getWinePath()+"/bin:"+rootDir+"/usr/local/bin:"+rootDir+"/usr/bin")' in patched
         assert 'envVars.put("WINELOADERNOEXEC", "1")' in patched
+        assert 'envVars.put("BOX64_LOG", "1")' in patched
         second = run(path)
         assert second.returncode == 0, second.stderr
         assert path.read_text(encoding="utf-8") == patched
